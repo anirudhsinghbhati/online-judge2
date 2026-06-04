@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+frontend/.env
+backend/.env
+backend/temp/*
+!backend/temp/.gitkeep
+.project-walkthrough.md
+.DS_Store
+Thumbs.db
