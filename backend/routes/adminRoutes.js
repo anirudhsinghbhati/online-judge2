@@ -1,0 +1,28 @@
+const router = require('express').Router();
+
+const asyncHandler = require('../utils/asyncHandler');
+const adminController = require('../controllers/adminController');
+
+router.get('/problems', asyncHandler(adminController.listProblems));
+router.get('/problems/:id', asyncHandler(adminController.getProblem));
+router.post('/problems', asyncHandler(adminController.createProblem));
+router.put('/problems/:id', asyncHandler(adminController.updateProblem));
+router.delete('/problems/:id', asyncHandler(adminController.deleteProblem));
+
+router.get('/users', asyncHandler(adminController.listUsers));
+router.get('/users/:id', asyncHandler(adminController.getUser));
+router.post('/users', asyncHandler(adminController.createUser));
+router.put('/users/:id', asyncHandler(adminController.updateUser));
+router.patch('/users/:id/status', asyncHandler(adminController.setUserStatus));
+router.delete('/users/:id', asyncHandler(adminController.deleteUser));
+
+router.get('/contests', asyncHandler(adminController.listContests));
+router.get('/contests/:id', asyncHandler(adminController.getContest));
+router.post('/contests', asyncHandler(adminController.createContest));
+router.put('/contests/:id', asyncHandler(adminController.updateContest));
+router.patch('/contests/:id/status', asyncHandler(adminController.setContestStatus));
+router.delete('/contests/:id', asyncHandler(adminController.deleteContest));
+
+router.get('/logs', asyncHandler(adminController.listLogs));
+
+module.exports = router;

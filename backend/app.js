@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 
+const adminRoutes = require('./routes/adminRoutes');
 const problemRoutes = require('./routes/problemRoutes');
 const executionRoutes = require('./routes/executionRoutes');
 const HttpError = require('./utils/httpError');
@@ -15,6 +16,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/problems', problemRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api', executionRoutes);
 
 app.use((req, res, next) => {

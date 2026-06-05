@@ -1,0 +1,144 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+
+import AdminShell from '../../components/AdminShell';
+import { requestJson } from '../../lib/adminApi';
+
+const filters = ['Easy', 'Medium', 'Hard', 'Topics'];
+
+export default function ProblemManagement() {
+  const [problems, setProblems] = useState([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProblems() {
+      try {
+        setLoading(true);
+        const data = await requestJson('/api/admin/problems');
+        if (!cancelled) {
+          setProblems(Array.isArray(data) ? data : []);
+        }
+      } catch (fetchError) {
+        if (!cancelled) {
+          setError(fetchError.message);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadProblems();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const visibleProblems = useMemo(() => {
+    const term = search.trim().toLowerCase();
+
+    return [...problems]
+      .filter((problem) => {
+        if (!term) {
+          return true;
+        }
+
+        const combined = [problem.id, problem.title, problem.difficulty, problem.topic]
+          .join(' ')
+          .toLowerCase();
+
+        return combined.includes(term);
+      })
+      .sort((left, right) => Number(right.id) - Number(left.id));
+  }, [problems, search]);
+
+  const toolbar = (
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex w-full flex-col gap-3 lg:max-w-5xl">
+        <input
+          type="search"
+          placeholder="Search problems"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-300/40"
+        />
+        <div className="flex flex-wrap gap-2">
+          {filters.map((filter) => (
+            <button
+              key={filter}
+              type="button"
+              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 transition hover:border-white/20 hover:bg-white/10"
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <Link
+        to="/admin/problem-management/add"
+        className="inline-flex items-center justify-center rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+      >
+        Add
+      </Link>
+    </div>
+  );
+
+  return (
+    <AdminShell breadcrumb={[{ label: 'Admin Dashboard', to: '/admin' }, { label: 'Problem Management' }]} toolbar={toolbar}>
+      <div className="mb-4 flex items-center justify-between gap-3 text-sm text-slate-400">
+        <p>Default sort: Last added</p>
+        <p>{visibleProblems.length} problems</p>
+      </div>
+
+      {error ? <div className="mb-4 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
+
+      <div className="overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55">
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="border-b border-white/10 bg-white/5 text-slate-400">
+              <tr>
+                <th className="px-4 py-3 font-medium uppercase tracking-[0.28em]">Problem No.</th>
+                <th className="px-4 py-3 font-medium uppercase tracking-[0.28em]">Problem Name</th>
+                <th className="px-4 py-3 font-medium uppercase tracking-[0.28em]">Difficulty</th>
+                <th className="px-4 py-3 font-medium uppercase tracking-[0.28em]">Topic</th>
+                <th className="px-4 py-3 font-medium uppercase tracking-[0.28em]">Last Added</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {loading ? (
+                <tr>
+                  <td className="px-4 py-6 text-slate-300" colSpan={5}>
+                    Loading problems...
+                  </td>
+                </tr>
+              ) : visibleProblems.length > 0 ? (
+                visibleProblems.map((problem) => (
+                  <tr key={problem.id} className="hover:bg-white/[0.03]">
+                    <td className="px-4 py-4 text-slate-200">{problem.id}</td>
+                    <td className="px-4 py-4 text-slate-200">{problem.title}</td>
+                    <td className="px-4 py-4 text-slate-200">{problem.difficulty}</td>
+                    <td className="px-4 py-4 text-slate-200">{problem.topic}</td>
+                    <td className="px-4 py-4 text-slate-200">{problem.updated_at || problem.created_at || '-'}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td className="px-4 py-6 text-slate-300" colSpan={5}>
+                    No problems found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </AdminShell>
+  );
+}
