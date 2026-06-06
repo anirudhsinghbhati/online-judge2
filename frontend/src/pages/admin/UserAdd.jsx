@@ -33,7 +33,7 @@ export default function UserAdd() {
   }
 
   return (
-    <AdminShell breadcrumb={[{ label: 'Admin Dashboard', to: '/admin' }, { label: 'User Management' }, { label: 'Add User' }]}>
+    <AdminShell breadcrumb={[{ label: 'Admin Dashboard', to: '/admin' }, { label: 'User Management', to: '/admin/user-management' }, { label: 'Add User' }]}>
       {error ? <div className="mb-4 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
 
       <form onSubmit={handleSubmit} className="mx-auto max-w-3xl rounded-[24px] border border-white/10 bg-slate-950/55 p-5 sm:p-6">
@@ -48,10 +48,10 @@ export default function UserAdd() {
           </label>
           <label className="space-y-2 text-sm text-slate-200">
             <span className="text-slate-400">Role</span>
-            <select value={form.role} onChange={(event) => updateField('role', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 outline-none focus:border-cyan-300/40">
-              <option>Admin</option>
-              <option>Moderator</option>
-              <option>Contestant</option>
+            <select value={form.role} onChange={(event) => updateField('role', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 outline-none focus:border-cyan-300/40 text-slate-100">
+              <option className="bg-slate-950 text-slate-100">Admin</option>
+              <option className="bg-slate-950 text-slate-100">Moderator</option>
+              <option className="bg-slate-950 text-slate-100">Contestant</option>
             </select>
           </label>
           <label className="space-y-2 text-sm text-slate-200">

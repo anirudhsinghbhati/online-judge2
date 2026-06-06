@@ -4,6 +4,9 @@ const cors = require('cors');
 const adminRoutes = require('./routes/adminRoutes');
 const problemRoutes = require('./routes/problemRoutes');
 const executionRoutes = require('./routes/executionRoutes');
+const contestRoutes = require('./routes/contestRoutes');
+const noticeRoutes = require('./routes/noticeRoutes');
+const userRoutes = require('./routes/userRoutes');
 const HttpError = require('./utils/httpError');
 
 const app = express();
@@ -17,6 +20,9 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/problems', problemRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/contests', contestRoutes);
+app.use('/api/notices', noticeRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api', executionRoutes);
 
 app.use((req, res, next) => {

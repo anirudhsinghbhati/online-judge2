@@ -25,10 +25,17 @@ async function deleteProblem(req, res) {
   res.json({ success: true, message: 'Problem deleted successfully' });
 }
 
+async function listPracticeProblems(req, res) {
+  const userId = req.query.userId ? Number(req.query.userId) : null;
+  const problems = await problemService.getPracticeProblems(userId);
+  res.json({ success: true, data: problems });
+}
+
 module.exports = {
   createProblem,
   deleteProblem,
   getProblem,
   listProblems,
-  updateProblem
+  updateProblem,
+  listPracticeProblems
 };

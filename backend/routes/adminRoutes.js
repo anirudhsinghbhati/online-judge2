@@ -25,4 +25,8 @@ router.delete('/contests/:id', asyncHandler(adminController.deleteContest));
 
 router.get('/logs', asyncHandler(adminController.listLogs));
 
+router.get('/notices', asyncHandler(adminController.listNotices));
+router.post('/notices', asyncHandler(adminController.createNotice));
+router.delete('/notices/:id', asyncHandler(adminController.deleteNotice));
+
 module.exports = router;

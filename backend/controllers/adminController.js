@@ -90,6 +90,21 @@ async function deleteProblem(req, res) {
   res.json({ success: true, message: 'Problem deleted successfully' });
 }
 
+async function listNotices(req, res) {
+  const notices = await adminService.listNotices();
+  res.json({ success: true, data: notices });
+}
+
+async function createNotice(req, res) {
+  const notice = await adminService.createNotice(req.body || {});
+  res.status(201).json({ success: true, data: notice });
+}
+
+async function deleteNotice(req, res) {
+  await adminService.deleteNotice(req.params.id);
+  res.json({ success: true, message: 'Notice deleted successfully' });
+}
+
 module.exports = {
   createContest,
   createProblem,
@@ -108,5 +123,8 @@ module.exports = {
   setUserStatus,
   updateContest,
   updateProblem,
-  updateUser
+  updateUser,
+  listNotices,
+  createNotice,
+  deleteNotice
 };

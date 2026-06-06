@@ -42,10 +42,14 @@ function normalizeTestcases(testcases) {
   }));
 }
 
-async function getAllProblems() {
-  const [rows] = await pool.query(
-    'SELECT id, title, description, difficulty, topic, constraints_text AS constraints, image_url, created_at, updated_at FROM problems ORDER BY id DESC'
-  );
+async function getAllProblems(options = {}) {
+  const includeHidden = Boolean(options.includeHidden);
+  let sql = 'SELECT id, title, description, difficulty, topic, constraints_text AS constraints, image_url, is_practice AS isPractice, created_at, updated_at FROM problems';
+  if (!includeHidden) {
+    sql += ' WHERE is_practice = 1';
+  }
+  sql += ' ORDER BY id DESC';
+  const [rows] = await pool.query(sql);
   return rows;
 }
 
@@ -54,12 +58,17 @@ async function getProblemById(id, executor = pool, options = {}) {
   const includeHidden = Boolean(options.includeHidden);
 
   const [problemRows] = await executor.query(
-    'SELECT id, title, description, difficulty, topic, constraints_text AS constraints, image_url, created_at, updated_at FROM problems WHERE id = ?',
+    'SELECT id, title, description, difficulty, topic, constraints_text AS constraints, image_url, is_practice AS isPractice, created_at, updated_at FROM problems WHERE id = ?',
     [problemId]
   );
 
   if (problemRows.length === 0) {
     throw new HttpError(404, 'Problem not found');
+  }
+
+  const problem = problemRows[0];
+  if (!includeHidden && !problem.isPractice) {
+    throw new HttpError(403, 'This problem is restricted to contests');
   }
 
   const testcaseQuery = includeHidden
@@ -69,7 +78,7 @@ async function getProblemById(id, executor = pool, options = {}) {
   const [testcaseRows] = await executor.query(testcaseQuery, [problemId]);
 
   return {
-    ...problemRows[0],
+    ...problem,
     testcases: testcaseRows
   };
 }
@@ -81,6 +90,7 @@ async function createProblem(payload, executor = pool) {
   const topic = normalizeText(payload.topic) || 'General';
   const constraints = normalizeText(payload.constraints || payload.constraints_text);
   const imageUrl = normalizeText(payload.imageUrl || payload.image_url);
+  const isPractice = payload.isPractice !== undefined ? Boolean(payload.isPractice) : true;
   const testcases = normalizeTestcases(payload.testcases);
 
   if (!title) {
@@ -98,8 +108,8 @@ async function createProblem(payload, executor = pool) {
     await runner.beginTransaction();
 
     const [insertResult] = await connection.query(
-      'INSERT INTO problems (title, description, difficulty, topic, constraints_text, image_url) VALUES (?, ?, ?, ?, ?, ?)',
-      [title, description, difficulty, topic, constraints, imageUrl]
+      'INSERT INTO problems (title, description, difficulty, topic, constraints_text, image_url, is_practice) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [title, description, difficulty, topic, constraints, imageUrl, isPractice ? 1 : 0]
     );
 
     const problemId = insertResult.insertId;
@@ -134,6 +144,7 @@ async function updateProblem(id, payload, executor = pool) {
   const topic = normalizeText(payload.topic) || 'General';
   const constraints = normalizeText(payload.constraints || payload.constraints_text);
   const imageUrl = normalizeText(payload.imageUrl || payload.image_url);
+  const isPractice = payload.isPractice !== undefined ? Boolean(payload.isPractice) : true;
   const testcases = normalizeTestcases(payload.testcases);
 
   if (!title) {
@@ -151,8 +162,8 @@ async function updateProblem(id, payload, executor = pool) {
     await runner.beginTransaction();
 
     const [updateResult] = await connection.query(
-      'UPDATE problems SET title = ?, description = ?, difficulty = ?, topic = ?, constraints_text = ?, image_url = ? WHERE id = ?',
-      [title, description, difficulty, topic, constraints, imageUrl, problemId]
+      'UPDATE problems SET title = ?, description = ?, difficulty = ?, topic = ?, constraints_text = ?, image_url = ?, is_practice = ? WHERE id = ?',
+      [title, description, difficulty, topic, constraints, imageUrl, isPractice ? 1 : 0, problemId]
     );
 
     if (updateResult.affectedRows === 0) {
@@ -202,6 +213,24 @@ async function getProblemTestcases(id, executor = pool, options = {}) {
   return problem.testcases;
 }
 
+async function getPracticeProblems(userId) {
+  const query = `
+    SELECT p.id, p.title, p.description, p.difficulty, p.topic, p.is_practice AS isPractice,
+      CASE
+        WHEN SUM(CASE WHEN s.verdict = 'Accepted' THEN 1 ELSE 0 END) > 0 THEN 'Solved'
+        WHEN COUNT(s.id) > 0 THEN 'Attempted'
+        ELSE 'Unattempted'
+      END AS user_status
+    FROM problems p
+    LEFT JOIN submissions s ON p.id = s.problem_id AND s.user_id = ?
+    WHERE p.is_practice = 1
+    GROUP BY p.id
+    ORDER BY p.id DESC
+  `;
+  const [rows] = await pool.query(query, [userId || 0]);
+  return rows;
+}
+
 module.exports = {
   createProblem,
   deleteProblem,
@@ -209,5 +238,6 @@ module.exports = {
   getProblemById,
   getProblemTestcases,
   parseProblemId,
-  updateProblem
+  updateProblem,
+  getPracticeProblems
 };

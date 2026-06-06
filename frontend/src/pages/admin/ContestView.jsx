@@ -34,7 +34,7 @@ export default function ContestView() {
 
   if (error) {
     return (
-      <AdminShell breadcrumb={[{ label: 'Admin Dashboard', to: '/admin' }, { label: 'Contest Management' }, { label: 'View Contest' }]}>
+      <AdminShell breadcrumb={[{ label: 'Admin Dashboard', to: '/admin' }, { label: 'Contest Management', to: '/admin/contest-management' }, { label: 'View Contest' }]}>
         <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{error}</div>
       </AdminShell>
     );
@@ -42,7 +42,7 @@ export default function ContestView() {
 
   if (!contest) {
     return (
-      <AdminShell breadcrumb={[{ label: 'Admin Dashboard', to: '/admin' }, { label: 'Contest Management' }, { label: 'View Contest' }]}>
+      <AdminShell breadcrumb={[{ label: 'Admin Dashboard', to: '/admin' }, { label: 'Contest Management', to: '/admin/contest-management' }, { label: 'View Contest' }]}>
         <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">Loading contest...</div>
       </AdminShell>
     );
@@ -62,7 +62,7 @@ export default function ContestView() {
   }
 
   return (
-    <AdminShell breadcrumb={[{ label: 'Admin Dashboard', to: '/admin' }, { label: 'Contest Management' }, { label: 'View Contest' }]}>
+    <AdminShell breadcrumb={[{ label: 'Admin Dashboard', to: '/admin' }, { label: 'Contest Management', to: '/admin/contest-management' }, { label: 'View Contest' }]}>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <section className="rounded-[24px] border border-white/10 bg-slate-950/55 p-5 sm:p-6">
           <p className="text-xs uppercase tracking-[0.35em] text-cyan-200/70">Contest Details</p>

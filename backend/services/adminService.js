@@ -220,20 +220,60 @@ function normalizeContestPayload(payload) {
   };
 }
 
-async function listContests(search = '') {
-  const term = normalizeText(search);
-  const params = [];
-  let sql = 'SELECT id, contest_name, contest_code, description, start_date, start_time, end_date, end_time, duration, visibility, access_control, allowed_users, status, created_at, updated_at FROM contests';
+function formatDateString(d) {
+  if (d instanceof Date) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return String(d || '');
+}
 
-  if (term) {
-    sql += ' WHERE contest_name LIKE ? OR contest_code LIKE ? OR status LIKE ?';
-    params.push(`%${term}%`, `%${term}%`, `%${term}%`);
+function computeContestStatus(contest) {
+  if (contest.status === 'Canceled') {
+    return 'Canceled';
   }
 
-  sql += ' ORDER BY start_date DESC, start_time DESC, id DESC';
+  const startStr = formatDateString(contest.start_date || contest.startDate);
+  const endStr = formatDateString(contest.end_date || contest.endDate);
+  const startTime = contest.start_time || contest.startTime;
+  const endTime = contest.end_time || contest.endTime;
 
-  const [rows] = await pool.query(sql, params);
-  return rows;
+  const startObj = new Date(`${startStr}T${startTime}`);
+  const endObj = new Date(`${endStr}T${endTime}`);
+  const now = new Date();
+
+  if (now < startObj) {
+    return 'Upcoming';
+  } else if (now >= startObj && now <= endObj) {
+    return 'Active';
+  } else {
+    return 'Completed';
+  }
+}
+
+async function listContests(search = '') {
+  const term = normalizeText(search);
+  let sql = 'SELECT id, contest_name, contest_code, description, start_date, start_time, end_date, end_time, duration, visibility, access_control, allowed_users, status, created_at, updated_at FROM contests ORDER BY start_date DESC, start_time DESC, id DESC';
+
+  const [rows] = await pool.query(sql);
+
+  const mapped = rows.map((row) => ({
+    ...row,
+    status: computeContestStatus(row)
+  }));
+
+  if (term) {
+    const termLower = term.toLowerCase();
+    return mapped.filter((c) =>
+      c.contest_name.toLowerCase().includes(termLower) ||
+      c.contest_code.toLowerCase().includes(termLower) ||
+      c.status.toLowerCase().includes(termLower)
+    );
+  }
+
+  return mapped;
 }
 
 async function getContestById(id) {
@@ -247,6 +287,9 @@ async function getContestById(id) {
     throw new HttpError(404, 'Contest not found');
   }
 
+  const contest = rows[0];
+  contest.status = computeContestStatus(contest);
+
   const [problemRows] = await pool.query(
     'SELECT p.id, p.title FROM contest_problems cp INNER JOIN problems p ON p.id = cp.problem_id WHERE cp.contest_id = ? ORDER BY cp.id ASC',
     [contestId]
@@ -258,7 +301,7 @@ async function getContestById(id) {
   );
 
   return {
-    ...rows[0],
+    ...contest,
     problems: problemRows,
     participants: participantRows,
     leaderboard: participantRows.map((participant, index) => ({
@@ -360,8 +403,41 @@ async function deleteContest(id) {
   if (result.affectedRows === 0) {
     throw new HttpError(404, 'Contest not found');
   }
-
   await recordLog('Contest', `Deleted contest #${contestId}`, 'Warning');
+  return { deleted: true };
+}
+
+async function listNotices() {
+  const [rows] = await pool.query('SELECT id, title, content, created_at FROM notices ORDER BY id DESC');
+  return rows;
+}
+
+async function createNotice(payload) {
+  const title = normalizeText(payload.title);
+  const content = normalizeText(payload.content);
+
+  if (!title) {
+    throw new HttpError(400, 'Title is required');
+  }
+  if (!content) {
+    throw new HttpError(400, 'Content is required');
+  }
+
+  const [result] = await pool.query('INSERT INTO notices (title, content) VALUES (?, ?)', [title, content]);
+  
+  await recordLog('Notice', `Created notice #${result.insertId} (${title})`, 'Info');
+
+  return { id: result.insertId, title, content };
+}
+
+async function deleteNotice(id) {
+  const noticeId = parsePositiveId(id, 'notice id');
+  const [result] = await pool.query('DELETE FROM notices WHERE id = ?', [noticeId]);
+  if (result.affectedRows === 0) {
+    throw new HttpError(404, 'Notice not found');
+  }
+
+  await recordLog('Notice', `Deleted notice #${noticeId}`, 'Warning');
   return { deleted: true };
 }
 
@@ -403,5 +479,8 @@ module.exports = {
   setUserStatus,
   updateAdminProblem,
   updateContest,
-  updateUser
+  updateUser,
+  listNotices,
+  createNotice,
+  deleteNotice
 };

@@ -4,11 +4,12 @@ import { Link } from 'react-router-dom';
 import AdminShell from '../../components/AdminShell';
 import { requestJson } from '../../lib/adminApi';
 
-const filters = ['Easy', 'Medium', 'Hard', 'Topics'];
+const filters = ['All', 'Easy', 'Medium', 'Hard'];
 
 export default function ProblemManagement() {
   const [problems, setProblems] = useState([]);
   const [search, setSearch] = useState('');
+  const [selectedFilter, setSelectedFilter] = useState('All');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -45,18 +46,17 @@ export default function ProblemManagement() {
 
     return [...problems]
       .filter((problem) => {
-        if (!term) {
-          return true;
-        }
-
-        const combined = [problem.id, problem.title, problem.difficulty, problem.topic]
+        const matchesSearch = !term || [problem.id, problem.title, problem.difficulty, problem.topic]
           .join(' ')
-          .toLowerCase();
+          .toLowerCase()
+          .includes(term);
 
-        return combined.includes(term);
+        const matchesFilter = selectedFilter === 'All' || problem.difficulty === selectedFilter;
+
+        return matchesSearch && matchesFilter;
       })
       .sort((left, right) => Number(right.id) - Number(left.id));
-  }, [problems, search]);
+  }, [problems, search, selectedFilter]);
 
   const toolbar = (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -66,18 +66,26 @@ export default function ProblemManagement() {
           placeholder="Search problems"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-300/40"
+          className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-300/40 text-slate-100"
         />
         <div className="flex flex-wrap gap-2">
-          {filters.map((filter) => (
-            <button
-              key={filter}
-              type="button"
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 transition hover:border-white/20 hover:bg-white/10"
-            >
-              {filter}
-            </button>
-          ))}
+          {filters.map((filter) => {
+            const isActive = selectedFilter === filter;
+            return (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => setSelectedFilter(filter)}
+                className={`rounded-full border px-4 py-2 text-sm transition ${
+                  isActive
+                    ? 'border-cyan-300/30 bg-cyan-300/10 text-cyan-100 font-semibold'
+                    : 'border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10'
+                }`}
+              >
+                {filter}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -109,12 +117,13 @@ export default function ProblemManagement() {
                 <th className="px-4 py-3 font-medium uppercase tracking-[0.28em]">Difficulty</th>
                 <th className="px-4 py-3 font-medium uppercase tracking-[0.28em]">Topic</th>
                 <th className="px-4 py-3 font-medium uppercase tracking-[0.28em]">Last Added</th>
+                <th className="px-4 py-3 font-medium uppercase tracking-[0.28em]">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
               {loading ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-300" colSpan={5}>
+                  <td className="px-4 py-6 text-slate-300" colSpan={6}>
                     Loading problems...
                   </td>
                 </tr>
@@ -126,11 +135,19 @@ export default function ProblemManagement() {
                     <td className="px-4 py-4 text-slate-200">{problem.difficulty}</td>
                     <td className="px-4 py-4 text-slate-200">{problem.topic}</td>
                     <td className="px-4 py-4 text-slate-200">{problem.updated_at || problem.created_at || '-'}</td>
+                    <td className="px-4 py-4">
+                      <Link
+                        to={`/admin/problem-management/${problem.id}`}
+                        className="inline-flex items-center rounded-full border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100 transition hover:bg-cyan-300/20"
+                      >
+                        View
+                      </Link>
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td className="px-4 py-6 text-slate-300" colSpan={5}>
+                  <td className="px-4 py-6 text-slate-300" colSpan={6}>
                     No problems found.
                   </td>
                 </tr>

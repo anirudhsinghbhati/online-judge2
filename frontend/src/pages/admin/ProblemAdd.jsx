@@ -65,7 +65,7 @@ export default function ProblemAdd() {
   }
 
   return (
-    <AdminShell breadcrumb={[{ label: 'Admin Dashboard', to: '/admin' }, { label: 'Problem Management' }, { label: 'Add Problem' }]}>
+    <AdminShell breadcrumb={[{ label: 'Admin Dashboard', to: '/admin' }, { label: 'Problem Management', to: '/admin/problem-management' }, { label: 'Add Problem' }]}>
       {error ? <div className="mb-4 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
 
       <form onSubmit={handleSubmit} className="space-y-4 rounded-[24px] border border-white/10 bg-slate-950/55 p-5 sm:p-6">

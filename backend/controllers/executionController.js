@@ -13,7 +13,7 @@ async function runCode(req, res) {
 }
 
 async function submitSolution(req, res) {
-  const { code, problemId, languageId, compilerOptions } = req.body || {};
+  const { code, problemId, languageId, compilerOptions, userId } = req.body || {};
 
   if (typeof code !== 'string' || !code.trim()) {
     throw new HttpError(400, 'Code is required');
@@ -23,7 +23,7 @@ async function submitSolution(req, res) {
     throw new HttpError(400, 'Problem id is required');
   }
 
-  const result = await executionService.submitSolution(problemId, code, languageId, compilerOptions);
+  const result = await executionService.submitSolution(problemId, code, languageId, compilerOptions, userId);
   res.json({ success: true, data: result });
 }
 

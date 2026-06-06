@@ -1,17 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 
 import MonacoEditor from '../components/MonacoEditor';
 import ResultPanel from '../components/ResultPanel';
 import { DEFAULT_LANGUAGE_KEY, LANGUAGE_OPTIONS, getLanguageOption } from '../constants';
+import UserLayout from '../components/UserLayout';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
-function buildUrl(path) {
-  return `${API_BASE_URL}${path}`;
-}
-
 async function requestJson(path, options = {}) {
-  const response = await fetch(buildUrl(path), {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       'Content-Type': 'application/json',
       ...(options.headers || {})
@@ -28,14 +26,23 @@ async function requestJson(path, options = {}) {
   return payload.data;
 }
 
-function User() {
+function UserWorkspace() {
+  const { problemId } = useParams();
+  const [searchParams] = useSearchParams();
+  const contestId = searchParams.get('contestId');
+  const navigate = useNavigate();
+
+  const selectedProblemId = Number(problemId);
+
   const [problems, setProblems] = useState([]);
-  const [selectedProblemId, setSelectedProblemId] = useState(null);
+  const [selectedContest, setSelectedContest] = useState(null);
   const [selectedProblem, setSelectedProblem] = useState(null);
+  
   const [selectedLanguageKey, setSelectedLanguageKey] = useState(DEFAULT_LANGUAGE_KEY);
   const [code, setCode] = useState(getLanguageOption(DEFAULT_LANGUAGE_KEY).starterCode);
   const [runResult, setRunResult] = useState(null);
   const [submitResult, setSubmitResult] = useState(null);
+  
   const [loadingProblems, setLoadingProblems] = useState(true);
   const [loadingProblem, setLoadingProblem] = useState(false);
   const [runningCode, setRunningCode] = useState(false);
@@ -44,7 +51,68 @@ function User() {
   const [activeMainTab, setActiveMainTab] = useState('description');
   const [activeBottomTab, setActiveBottomTab] = useState('result');
   const [activeTestcaseIndex, setActiveTestcaseIndex] = useState(0);
+  const [contestTimeLeft, setContestTimeLeft] = useState('');
 
+  // Helper function to extract YYYY-MM-DD cleanly without timezone shifts
+  function getYYYYMMDD(dateVal) {
+    if (!dateVal) return '';
+    const str = String(dateVal);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+      return str;
+    }
+    if (str.includes('T')) {
+      return str.split('T')[0];
+    }
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) {
+      return str;
+    }
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  // Active contest countdown timer
+  useEffect(() => {
+    if (!selectedContest || selectedContest.status !== 'Active') {
+      setContestTimeLeft('');
+      return;
+    }
+
+    function updateTimeLeft() {
+      const endStr = getYYYYMMDD(selectedContest.end_date);
+      const endObj = new Date(`${endStr}T${selectedContest.end_time}`);
+      const now = new Date();
+      const diff = endObj - now;
+
+      if (diff <= 0) {
+        setContestTimeLeft('Ended');
+        navigate(`/user/contests/${contestId}?ended=true`, { replace: true });
+        return;
+      }
+
+      const hrs = String(Math.floor(diff / 3600000)).padStart(2, '0');
+      const mins = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0');
+      const secs = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
+      setContestTimeLeft(`${hrs}:${mins}:${secs}`);
+    }
+
+    updateTimeLeft();
+    const timerId = setInterval(updateTimeLeft, 1000);
+    return () => clearInterval(timerId);
+  }, [selectedContest, contestId, navigate]);
+
+  // Tab locking effect: lock Editorial and Solutions tabs during active contests
+  useEffect(() => {
+    if (contestId && selectedContest?.status === 'Active') {
+      if (activeMainTab === 'editorial' || activeMainTab === 'solutions') {
+        setActiveMainTab('description');
+      }
+    }
+  }, [contestId, selectedContest, activeMainTab]);
+
+  // Load practice problems list
   useEffect(() => {
     let cancelled = false;
 
@@ -56,7 +124,6 @@ function User() {
 
         if (!cancelled) {
           setProblems(Array.isArray(data) ? data : []);
-          setSelectedProblemId((currentId) => currentId || data?.[0]?.id || null);
         }
       } catch (fetchError) {
         if (!cancelled) {
@@ -76,6 +143,37 @@ function User() {
     };
   }, []);
 
+  // Load contest details if contestId is provided
+  useEffect(() => {
+    if (!contestId) {
+      setSelectedContest(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadContest() {
+      try {
+        const data = await requestJson(`/api/contests/${contestId}`);
+        if (!cancelled) {
+          setSelectedContest(data);
+          if (data.status === 'Completed') {
+            navigate(`/user/contests/${contestId}?ended=true`, { replace: true });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load contest details:', err);
+      }
+    }
+
+    loadContest();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [contestId, navigate]);
+
+  // Fetch problem details when selectedProblemId changes
   useEffect(() => {
     if (!selectedProblemId) {
       setSelectedProblem(null);
@@ -120,8 +218,23 @@ function User() {
   const activeTestcase = testcases[activeTestcaseIndex] || testcases[0] || null;
   const selectedLanguage = getLanguageOption(selectedLanguageKey);
 
+  // Compute what problems to show in the dropdown based on context
+  const problemsToShow = useMemo(() => {
+    if (!contestId) {
+      return problems;
+    }
+    if (selectedContest && (selectedContest.status === 'Active' || selectedContest.status === 'Completed')) {
+      return selectedContest.problems || [];
+    }
+    return [];
+  }, [contestId, selectedContest, problems]);
+
   function selectProblem(problemId) {
-    setSelectedProblemId(problemId);
+    if (contestId) {
+      navigate(`/user/problems/${problemId}?contestId=${contestId}`);
+    } else {
+      navigate(`/user/problems/${problemId}`);
+    }
     setError('');
     setRunResult(null);
     setSubmitResult(null);
@@ -143,10 +256,9 @@ function User() {
       <button
         type="button"
         onClick={onClick}
-        className={`rounded-full px-4 py-2 text-sm transition ${
-          isActive
-            ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-300/30'
-            : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+        className={`rounded-full px-4 py-2 text-sm transition ${isActive
+          ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-300/30'
+          : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
         }`}
       >
         {label}
@@ -197,13 +309,16 @@ function User() {
       setSubmittingCode(true);
       setError('');
       setRunResult(null);
+      const activeUserId = localStorage.getItem('demo_active_user_id');
+
       const data = await requestJson('/api/submit', {
         method: 'POST',
         body: JSON.stringify({
           code,
           problemId: selectedProblemId,
           languageId: selectedLanguage.judge0LanguageId,
-          compilerOptions: selectedLanguage.compilerOptions
+          compilerOptions: selectedLanguage.compilerOptions,
+          userId: activeUserId ? Number(activeUserId) : null // Pass simulated user ID to log submission
         })
       });
 
@@ -217,216 +332,287 @@ function User() {
   }
 
   return (
-    <div className="mx-auto max-w-[1680px] px-3 py-4 sm:px-4 lg:px-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-white/10 bg-slate-950/60 px-4 py-3 backdrop-blur-xl">
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300">
-            <span className="text-slate-500">Problem</span>
-            <select
-              value={selectedProblemId || ''}
-              onChange={(event) => selectProblem(Number(event.target.value))}
-              className="bg-transparent text-slate-100 outline-none"
+    <UserLayout>
+      <div className="w-full flex-1 flex flex-col">
+        
+        {/* Navigation / Mode Top Panel */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-white/10 bg-slate-950/60 px-4 py-3 backdrop-blur-xl">
+          <div className="flex flex-wrap items-center gap-3">
+            
+            {/* Back link */}
+            <Link
+              to={contestId ? `/user/contests/${contestId}` : '/user/practice'}
+              className="text-xs font-semibold text-slate-400 hover:text-cyan-300 transition pr-2 flex items-center gap-1"
             >
-              {problems.map((problem) => (
-                <option key={problem.id} value={problem.id} className="bg-slate-950 text-slate-100">
-                  #{problem.id} {problem.title}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </div>
+              &larr; {contestId ? 'Back to Contest' : 'Back to Practice'}
+            </Link>
 
-      {error ? (
-        <div className="mb-4 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
-          {error}
-        </div>
-      ) : null}
+            <span className="text-slate-600 font-mono">|</span>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1.25fr)]">
-        <aside className="glass-panel flex min-h-[calc(100vh-160px)] flex-col overflow-hidden rounded-[20px] shadow-glow">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-            <div className="flex flex-wrap items-center gap-2">
-              {renderTabButton('Description', activeMainTab === 'description', () => setActiveMainTab('description'))}
-              {renderTabButton('Editorial', activeMainTab === 'editorial', () => setActiveMainTab('editorial'))}
-              {renderTabButton('Solutions', activeMainTab === 'solutions', () => setActiveMainTab('solutions'))}
-              {renderTabButton('Submissions', activeMainTab === 'submissions', () => setActiveMainTab('submissions'))}
+            {/* Current Context Mode tag */}
+            <div className="text-xs font-semibold text-slate-300 flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-3 py-1.5">
+              <span className={`h-1.5 w-1.5 rounded-full ${contestId ? 'bg-amber-400 animate-pulse' : 'bg-cyan-400'}`} />
+              {contestId ? `Contest: ${selectedContest?.contest_name || 'Loading...'}` : 'Practice Arena'}
             </div>
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
-              {loadingProblems ? 'Loading problems...' : `${problems.length} problems`}
-            </span>
-          </div>
 
-          <div className="min-h-0 flex-1 overflow-auto px-5 py-4 scrollbar-thin">
-            {loadingProblem ? (
-              <div className="space-y-4">
-                <div className="h-6 w-48 animate-pulse rounded bg-white/10" />
-                <div className="h-4 w-full animate-pulse rounded bg-white/5" />
-                <div className="h-4 w-11/12 animate-pulse rounded bg-white/5" />
-                <div className="h-4 w-3/4 animate-pulse rounded bg-white/5" />
-              </div>
-            ) : activeMainTab === 'description' && selectedProblem ? (
-              <div className="space-y-5">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Description</p>
-                  <h3 className="mt-2 text-3xl font-semibold text-white">{selectedProblem.title}</h3>
-                  <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                    <span className="rounded-full bg-amber-300/15 px-3 py-1 text-amber-200">Medium</span>
-                    <span className="rounded-full bg-white/5 px-3 py-1 text-slate-300">Problem #{selectedProblem.id}</span>
-                    <span className="rounded-full bg-white/5 px-3 py-1 text-slate-300">
-                      {testcases.length} testcase{testcases.length === 1 ? '' : 's'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
-                  <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">{selectedProblem.description}</p>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
-                  <h4 className="text-sm font-semibold text-white">Sample Testcases</h4>
-                  <div className="mt-4 space-y-3">
-                    {testcases.length > 0 ? (
-                      testcases.map((testcase, index) => {
-                        const isSelected = index === activeTestcaseIndex;
-
-                        return (
-                          <button
-                            key={`${index}-${testcase.input_data}`}
-                            type="button"
-                            onClick={() => setActiveTestcaseIndex(index)}
-                            className={`w-full rounded-2xl border p-4 text-left transition ${
-                              isSelected
-                                ? 'border-cyan-400/40 bg-cyan-400/10'
-                                : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-sm font-semibold text-white">Testcase #{index + 1}</span>
-                              <span className="text-xs text-slate-400">Click to preview</span>
-                            </div>
-                            <div className="mt-3 grid gap-3 md:grid-cols-2">
-                              <div>
-                                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Input</p>
-                                <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-950/80 p-3 text-sm text-slate-200 scrollbar-thin">
-                                  {testcase.input_data || '-'}
-                                </pre>
-                              </div>
-                              <div>
-                                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Expected</p>
-                                <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-950/80 p-3 text-sm text-slate-200 scrollbar-thin">
-                                  {testcase.expected_output || '-'}
-                                </pre>
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-5 text-sm text-slate-300">
-                        No testcases found for this problem.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-white/15 bg-white/5 p-6 text-sm text-slate-300">
-                {activeMainTab === 'description'
-                  ? 'Select a problem to start coding.'
-                  : 'This section can host editorial, solutions, and submission history later.'}
-              </div>
+            {/* Problem Selector Dropdown */}
+            {problemsToShow.length > 0 && (
+              <label className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs text-slate-300">
+                <span className="text-slate-500">Workspace Problem:</span>
+                <select
+                  value={selectedProblemId || ''}
+                  onChange={(event) => selectProblem(Number(event.target.value))}
+                  className="bg-transparent text-slate-100 outline-none font-semibold cursor-pointer"
+                >
+                  {problemsToShow.map((problem) => (
+                    <option key={problem.id} value={problem.id} className="bg-slate-950 text-slate-100">
+                      #{problem.id} {problem.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
+
           </div>
-        </aside>
 
-        <div className="flex min-h-[calc(100vh-160px)] flex-col gap-4">
-          <section className="glass-panel flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] shadow-glow">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
-                  <span className="text-slate-500">Language</span>
-                  <select
-                    value={selectedLanguageKey}
-                    onChange={(event) => handleLanguageChange(event.target.value)}
-                    className="bg-transparent text-slate-100 outline-none"
-                  >
-                    {LANGUAGE_OPTIONS.map((language) => (
-                      <option key={language.key} value={language.key} className="bg-slate-950 text-slate-100">
-                        {language.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  onClick={handleRunCode}
-                  disabled={runningCode || submittingCode}
-                  className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {runningCode ? 'Running...' : 'Run'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSubmitCode}
-                  disabled={runningCode || submittingCode || !selectedProblemId}
-                  className="rounded-full bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {submittingCode ? 'Submitting...' : 'Submit'}
-                </button>
+          {/* Active Contest Countdown Timer */}
+          {contestId && selectedContest?.status === 'Active' && contestTimeLeft && (
+            <div className="text-xs font-bold font-mono text-rose-400 flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 rounded-full px-3.5 py-1.5 animate-pulse shrink-0">
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              <span>Time Left: {contestTimeLeft}</span>
+            </div>
+          )}
+        </div>
+
+        {error ? (
+          <div className="mb-4 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+            {error}
+          </div>
+        ) : null}
+
+        {/* RENDER LOCKOUT OVERLAY IF CONTEST IS UPCOMING */}
+        {selectedContest && selectedContest.status === 'Upcoming' ? (
+          <div className="flex-1 flex flex-col items-center justify-center rounded-[20px] border border-white/10 bg-slate-950/80 p-8 text-center backdrop-blur-xl shadow-glow min-h-[500px]">
+            <span className="text-5xl mb-6 animate-pulse select-none">🔒</span>
+            <h3 className="text-2xl font-bold text-white uppercase tracking-wider">Contest is Locked</h3>
+            <p className="mt-4 text-slate-300 max-w-md text-sm leading-relaxed">
+              The contest <span className="font-semibold text-cyan-300">"{selectedContest.contest_name}"</span> has not started yet. It is scheduled to start at:
+            </p>
+            <div className="mt-4 bg-white/5 rounded-2xl px-6 py-4 border border-white/5 font-mono text-cyan-200">
+              {selectedContest.start_date} @ {selectedContest.start_time}
+            </div>
+            <p className="mt-4 text-xs text-slate-500">
+              Duration: {selectedContest.duration} | Access: {selectedContest.visibility}
+            </p>
+          </div>
+        ) : (
+          // RENDER CODING CONSOLE
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] flex-1">
+            <aside className="glass-panel flex min-h-[550px] flex-col overflow-hidden rounded-[20px] shadow-glow border border-white/10 bg-slate-950/40">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3 bg-slate-950/20">
+                <div className="flex flex-wrap items-center gap-2">
+                  {renderTabButton('Description', activeMainTab === 'description', () => setActiveMainTab('description'))}
+                  {contestId && selectedContest?.status === 'Active' ? (
+                    <>
+                      {renderTabButton('🔒 Editorial', activeMainTab === 'editorial', () => {
+                        setError('Editorial is locked during the active contest.');
+                      })}
+                      {renderTabButton('🔒 Solutions', activeMainTab === 'solutions', () => {
+                        setError('Solutions are locked during the active contest.');
+                      })}
+                    </>
+                  ) : (
+                    <>
+                      {renderTabButton('Editorial', activeMainTab === 'editorial', () => setActiveMainTab('editorial'))}
+                      {renderTabButton('Solutions', activeMainTab === 'solutions', () => setActiveMainTab('solutions'))}
+                    </>
+                  )}
+                  {renderTabButton('Submissions', activeMainTab === 'submissions', () => setActiveMainTab('submissions'))}
+                </div>
               </div>
-            </div>
 
-            <div className="min-h-0 flex-1 p-4">
-              <MonacoEditor
-                value={code}
-                onChange={setCode}
-                language={selectedLanguage.monacoLanguage}
-                height="100%"
-                className="h-full"
-              />
-            </div>
-          </section>
-
-          <section className="glass-panel min-h-[280px] overflow-hidden rounded-[20px] shadow-glow">
-            <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-              {renderTabButton('Testcase', activeBottomTab === 'testcase', () => setActiveBottomTab('testcase'))}
-              {renderTabButton('Test Result', activeBottomTab === 'result', () => setActiveBottomTab('result'))}
-            </div>
-
-            <div className="p-4">
-              {activeBottomTab === 'testcase' ? (
-                activeTestcase ? (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-                      <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Input</p>
-                      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-xl bg-white/5 p-4 text-sm text-slate-100 scrollbar-thin">
-                        {activeTestcase.input_data || '-'}
-                      </pre>
+              <div className="min-h-0 flex-1 overflow-auto px-5 py-4 scrollbar-thin">
+                {loadingProblem ? (
+                  <div className="space-y-4">
+                    <div className="h-6 w-48 animate-pulse rounded bg-white/10" />
+                    <div className="h-4 w-full animate-pulse rounded bg-white/5" />
+                    <div className="h-4 w-11/12 animate-pulse rounded bg-white/5" />
+                    <div className="h-4 w-3/4 animate-pulse rounded bg-white/5" />
+                  </div>
+                ) : activeMainTab === 'description' && selectedProblem ? (
+                  <div className="space-y-5">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Description</p>
+                      <h3 className="mt-2 text-3xl font-semibold text-white">{selectedProblem.title}</h3>
+                      <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                        <span className={`rounded-full px-3 py-1 font-semibold ${
+                          selectedProblem.difficulty === 'Hard'
+                            ? 'bg-rose-400/15 text-rose-200'
+                            : selectedProblem.difficulty === 'Medium'
+                              ? 'bg-amber-400/15 text-amber-200'
+                              : 'bg-emerald-400/15 text-emerald-200'
+                        }`}>
+                          {selectedProblem.difficulty}
+                        </span>
+                        <span className="rounded-full bg-white/5 px-3 py-1 text-slate-300">Problem #{selectedProblem.id}</span>
+                        <span className="rounded-full bg-white/5 px-3 py-1 text-slate-300">
+                          {testcases.length} testcase{testcases.length === 1 ? '' : 's'}
+                        </span>
+                      </div>
                     </div>
-                    <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-                      <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Expected Output</p>
-                      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-xl bg-white/5 p-4 text-sm text-slate-100 scrollbar-thin">
-                        {activeTestcase.expected_output || '-'}
-                      </pre>
+
+                    <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
+                      <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">{selectedProblem.description}</p>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
+                      <h4 className="text-sm font-semibold text-white">Sample Testcases</h4>
+                      <div className="mt-4 space-y-3">
+                        {testcases.length > 0 ? (
+                          testcases.map((testcase, index) => {
+                            const isSelected = index === activeTestcaseIndex;
+
+                            return (
+                              <button
+                                key={`${index}-${testcase.input_data}`}
+                                type="button"
+                                onClick={() => setActiveTestcaseIndex(index)}
+                                className={`w-full rounded-2xl border p-4 text-left transition ${isSelected
+                                  ? 'border-cyan-400/40 bg-cyan-400/10'
+                                  : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="text-sm font-semibold text-white">Testcase #{index + 1}</span>
+                                  <span className="text-xs text-slate-400">Click to preview</span>
+                                </div>
+                                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                  <div>
+                                    <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Input</p>
+                                    <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-950/80 p-3 text-sm text-slate-200 scrollbar-thin">
+                                      {testcase.input_data || '-'}
+                                    </pre>
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Expected</p>
+                                    <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-950/80 p-3 text-sm text-slate-200 scrollbar-thin">
+                                      {testcase.expected_output || '-'}
+                                    </pre>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-5 text-sm text-slate-300">
+                            No testcases found for this problem.
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-5 text-sm text-slate-300">
-                    Pick a problem testcase to preview it here.
+                  <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-white/15 bg-white/5 p-6 text-sm text-slate-300">
+                    {activeMainTab === 'description'
+                      ? 'Select a problem to start coding.'
+                      : 'This section can host editorial, solutions, and submission history later.'}
                   </div>
-                )
-              ) : (
-                <div>
-                  <ResultPanel result={activeResult} loading={runningCode || submittingCode} />
+                )}
+              </div>
+            </aside>
+
+            <div className="flex flex-col gap-4 min-h-[550px]">
+              <section className="glass-panel flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] shadow-glow border border-white/10 bg-slate-950/40">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3 bg-slate-950/20">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
+                      <span className="text-slate-500">Language</span>
+                      <select
+                        value={selectedLanguageKey}
+                        onChange={(event) => handleLanguageChange(event.target.value)}
+                        className="bg-transparent text-slate-100 outline-none cursor-pointer"
+                      >
+                        {LANGUAGE_OPTIONS.map((language) => (
+                          <option key={language.key} value={language.key} className="bg-slate-950 text-slate-100">
+                            {language.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleRunCode}
+                      disabled={runningCode || submittingCode || !selectedProblemId}
+                      className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {runningCode ? 'Running...' : 'Run'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSubmitCode}
+                      disabled={runningCode || submittingCode || !selectedProblemId}
+                      className="rounded-full bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {submittingCode ? 'Submitting...' : 'Submit'}
+                    </button>
+                  </div>
                 </div>
-              )}
+
+                <div className="min-h-[250px] flex-1 p-4">
+                  <MonacoEditor
+                    value={code}
+                    onChange={setCode}
+                    language={selectedLanguage.monacoLanguage}
+                    height="100%"
+                    className="h-full"
+                  />
+                </div>
+              </section>
+
+              <section className="glass-panel min-h-[250px] overflow-hidden rounded-[20px] shadow-glow border border-white/10 bg-slate-950/40">
+                <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3 bg-slate-950/20">
+                  {renderTabButton('Testcase', activeBottomTab === 'testcase', () => setActiveBottomTab('testcase'))}
+                  {renderTabButton('Test Result', activeBottomTab === 'result', () => setActiveBottomTab('result'))}
+                </div>
+
+                <div className="p-4">
+                  {activeBottomTab === 'testcase' ? (
+                    activeTestcase ? (
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+                          <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Input</p>
+                          <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-xl bg-white/5 p-4 text-sm text-slate-100 scrollbar-thin">
+                            {activeTestcase.input_data || '-'}
+                          </pre>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+                          <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Expected Output</p>
+                          <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-xl bg-white/5 p-4 text-sm text-slate-100 scrollbar-thin">
+                            {activeTestcase.expected_output || '-'}
+                          </pre>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-5 text-sm text-slate-300">
+                        Pick a problem testcase to preview it here.
+                      </div>
+                    )
+                  ) : (
+                    <div>
+                      <ResultPanel result={activeResult} loading={runningCode || submittingCode} />
+                    </div>
+                  )}
+                </div>
+              </section>
             </div>
           </section>
-        </div>
-      </section>
-    </div>
+        )}
+      </div>
+    </UserLayout>
   );
 }
 
-export default User;
+export default UserWorkspace;

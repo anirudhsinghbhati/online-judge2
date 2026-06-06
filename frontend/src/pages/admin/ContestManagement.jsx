@@ -12,6 +12,8 @@ export default function ContestManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const [selectedFilter, setSelectedFilter] = useState('All');
+
   useEffect(() => {
     let cancelled = false;
 
@@ -43,13 +45,23 @@ export default function ContestManagement() {
   const visibleContests = useMemo(() => {
     const term = search.trim().toLowerCase();
     return contests.filter((contest) => {
-      if (!term) {
-        return true;
+      const matchesSearch = !term || [contest.id, contest.contest_name, contest.contest_code, contest.status]
+        .join(' ')
+        .toLowerCase()
+        .includes(term);
+
+      let matchesFilter = true;
+      if (selectedFilter !== 'All') {
+        if (selectedFilter === 'Private' || selectedFilter === 'Public') {
+          matchesFilter = contest.visibility === selectedFilter;
+        } else {
+          matchesFilter = contest.status === selectedFilter;
+        }
       }
 
-      return [contest.id, contest.contest_name, contest.contest_code, contest.status].join(' ').toLowerCase().includes(term);
+      return matchesSearch && matchesFilter;
     });
-  }, [contests, search]);
+  }, [contests, search, selectedFilter]);
 
   const toolbar = (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -59,7 +71,7 @@ export default function ContestManagement() {
           placeholder="Search contests"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-300/40"
+          className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-300/40 text-slate-100"
         />
       </div>
       <Link
@@ -76,19 +88,23 @@ export default function ContestManagement() {
       {error ? <div className="mb-4 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
 
       <div className="mb-4 flex flex-wrap gap-2">
-        {filters.map((filter, index) => (
-          <button
-            key={filter}
-            type="button"
-            className={`rounded-full border px-4 py-2 text-sm transition ${
-              index === 0
-                ? 'border-cyan-300/30 bg-cyan-300/10 text-cyan-100'
-                : 'border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10'
-            }`}
-          >
-            {filter}
-          </button>
-        ))}
+        {filters.map((filter) => {
+          const isActive = selectedFilter === filter;
+          return (
+            <button
+              key={filter}
+              type="button"
+              onClick={() => setSelectedFilter(filter)}
+              className={`rounded-full border px-4 py-2 text-sm transition ${
+                isActive
+                  ? 'border-cyan-300/30 bg-cyan-300/10 text-cyan-100 font-semibold'
+                  : 'border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10'
+              }`}
+            >
+              {filter}
+            </button>
+          );
+        })}
       </div>
 
       <div className="overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55">

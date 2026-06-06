@@ -163,7 +163,47 @@ async function runCode(code, input = '', languageId = judge0LanguageId, compiler
   return buildExecutionResult(submission);
 }
 
-async function submitSolution(problemId, code, languageId = judge0LanguageId, compilerOptions = judge0CompilerOptions, timeoutMs = defaultTimeoutMs) {
+async function saveSubmissionAndStats(userId, problemId, code, languageId, verdict, passedCount, totalCount) {
+  if (!userId) return;
+  const { pool } = require('../database/connection');
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    await connection.query(
+      'INSERT INTO submissions (user_id, problem_id, code, language_id, verdict, passed_count, total_count) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [userId, problemId, code, languageId, verdict, passedCount, totalCount]
+    );
+
+    const [statsRows] = await connection.query(
+      'SELECT COUNT(*) as total, SUM(CASE WHEN verdict = "Accepted" THEN 1 ELSE 0 END) as accepted FROM submissions WHERE user_id = ?',
+      [userId]
+    );
+
+    const totalSubmissions = statsRows[0].total || 1;
+    const acceptedSubmissions = statsRows[0].accepted || 0;
+    const acceptanceRate = Number(((acceptedSubmissions / totalSubmissions) * 100).toFixed(2));
+
+    await connection.query(
+      'UPDATE users SET submissions_count = ?, acceptance_rate = ?, last_activity = "Just now" WHERE id = ?',
+      [totalSubmissions, acceptanceRate, userId]
+    );
+
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    console.error('Failed to save submission or update user statistics:', error);
+  } finally {
+    connection.release();
+  }
+}
+
+async function submitSolution(problemId, code, languageId = judge0LanguageId, compilerOptions = judge0CompilerOptions, userId = null, timeoutMs = defaultTimeoutMs) {
+  if (typeof userId === 'object' && userId !== null) {
+    // shift args if needed
+    timeoutMs = userId;
+    userId = null;
+  }
   const parsedProblemId = parseProblemId(problemId);
   const testcases = await getProblemTestcases(parsedProblemId);
 
@@ -179,8 +219,10 @@ async function submitSolution(problemId, code, languageId = judge0LanguageId, co
     const execution = buildExecutionResult(submission);
 
     if (!execution.compiled) {
+      const compilationVerdict = 'Compilation Error';
+      await saveSubmissionAndStats(userId, parsedProblemId, code, languageId, compilationVerdict, 0, testcases.length);
       return {
-        verdict: 'Compilation Error',
+        verdict: compilationVerdict,
         passedCount: 0,
         totalCount: testcases.length,
         failedTestcaseNumber: null,
@@ -221,6 +263,8 @@ async function submitSolution(problemId, code, languageId = judge0LanguageId, co
 
     passedCount += 1;
   }
+
+  await saveSubmissionAndStats(userId, parsedProblemId, code, languageId, verdict, passedCount, testcases.length);
 
   return {
     verdict,
