@@ -50,15 +50,15 @@ jobs:
       - name: Checkout Code (to get docker-compose file)
         uses: actions/checkout@v4
 
-      - name: Copy docker-compose.yml to EC2 via SCP
+      - name: Copy config files to EC2 via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "docker-compose.yml"
+          source: "docker-compose.yml,backend/database/schema.sql,judge0.conf"
           target: "~/app/"
-          strip_components: 0 # Ensures it drops directly into ~/app/ and not ~/app/docker-compose.yml
+          strip_components: 0 # Ensures relative paths are preserved under ~/app/
 
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
