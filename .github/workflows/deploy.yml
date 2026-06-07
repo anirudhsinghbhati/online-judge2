@@ -74,10 +74,10 @@ jobs:
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
             
             # Pull the latest images
-            docker-compose pull
+            docker compose pull
             
             # Stop older containers and start new ones seamlessly
-            docker-compose up -d --remove-orphans
+            docker compose up -d --remove-orphans
             
             # Clean up old, unused dangling images to save EC2 disk space
             docker image prune -f
