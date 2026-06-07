@@ -58,7 +58,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "docker-compose.yml"
           target: "~/app/"
-          debug: true
+          strip_components: 0 # Ensures it drops directly into ~/app/ and not ~/app/docker-compose.yml
 
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -68,16 +68,26 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           debug: true
           script: |
-            cd ~/app
-            export DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
-            # Log into Docker Hub on EC2 to pull private images (if applicable)
-            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            # 1. Ensure the directory exists
+            sudo mkdir -p ~/app
+            sudo chown -R $USER:$USER ~/app
             
-            # Pull the latest images
-            docker compose pull
+            # 2. Enable Docker daemon services to automatically start on boot
+            sudo systemctl enable docker
+            sudo systemctl enable containerd
+            
+            # 3. Enter the deployment directory
+            cd ~/app
+            
+            # 4. Use sudo for all interactive Docker commands to prevent Permission Denied
+            export DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | sudo docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            
+            # Pull the latest images securely
+            sudo docker compose pull
             
             # Stop older containers and start new ones seamlessly
-            docker compose up -d --remove-orphans
+            sudo docker compose up -d --remove-orphans
             
             # Clean up old, unused dangling images to save EC2 disk space
-            docker image prune -f
+            sudo docker image prune -f

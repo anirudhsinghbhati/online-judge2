@@ -1,6 +1,7 @@
 const { pool } = require('../database/connection');
 const { recordLog } = require('./adminLogService');
 const HttpError = require('../utils/httpError');
+const cache = require('../utils/cache');
 
 function parseProblemId(value) {
   const problemId = Number.parseInt(value, 10);
@@ -44,19 +45,20 @@ function normalizeTestcases(testcases) {
 
 async function getAllProblems(options = {}) {
   const includeHidden = Boolean(options.includeHidden);
-  let sql = 'SELECT id, title, description, difficulty, topic, constraints_text AS constraints, image_url, is_practice AS isPractice, created_at, updated_at FROM problems';
-  if (!includeHidden) {
-    sql += ' WHERE is_practice = 1';
-  }
-  sql += ' ORDER BY id DESC';
-  const [rows] = await pool.query(sql);
-  return rows;
+  const cacheKey = `problems:all:${includeHidden ? 'includeHidden' : 'practice'}`;
+
+  return cache.cacheOrFetch(cacheKey, 300, async () => {
+    let sql = 'SELECT id, title, description, difficulty, topic, constraints_text AS constraints, image_url, is_practice AS isPractice, created_at, updated_at FROM problems';
+    if (!includeHidden) {
+      sql += ' WHERE is_practice = 1';
+    }
+    sql += ' ORDER BY id DESC';
+    const [rows] = await pool.query(sql);
+    return rows;
+  });
 }
 
-async function getProblemById(id, executor = pool, options = {}) {
-  const problemId = parseProblemId(id);
-  const includeHidden = Boolean(options.includeHidden);
-
+async function fetchProblemByIdFromDb(problemId, executor, includeHidden) {
   const [problemRows] = await executor.query(
     'SELECT id, title, description, difficulty, topic, constraints_text AS constraints, image_url, is_practice AS isPractice, created_at, updated_at FROM problems WHERE id = ?',
     [problemId]
@@ -81,6 +83,18 @@ async function getProblemById(id, executor = pool, options = {}) {
     ...problem,
     testcases: testcaseRows
   };
+}
+
+async function getProblemById(id, executor = pool, options = {}) {
+  const problemId = parseProblemId(id);
+  const includeHidden = Boolean(options.includeHidden);
+
+  if (executor !== pool) {
+    return fetchProblemByIdFromDb(problemId, executor, includeHidden);
+  }
+
+  const cacheKey = `problem:${problemId}:${includeHidden ? 'includeHidden' : 'public'}`;
+  return cache.cacheOrFetch(cacheKey, 300, () => fetchProblemByIdFromDb(problemId, pool, includeHidden));
 }
 
 async function createProblem(payload, executor = pool) {
@@ -124,6 +138,12 @@ async function createProblem(payload, executor = pool) {
     await recordLog('Problem', `Created problem #${problemId} (${title})`, 'Info', runner);
 
     await runner.commit();
+
+    // Invalidate caches
+    await cache.delPattern('problems:all:*');
+    await cache.delPattern('problems:practice:*');
+    await cache.delPattern('contests:list');
+    await cache.delPattern('contest:*');
 
     return getProblemById(problemId, runner, { includeHidden: true });
   } catch (error) {
@@ -183,6 +203,14 @@ async function updateProblem(id, payload, executor = pool) {
 
     await runner.commit();
 
+    // Invalidate caches
+    await cache.delPattern('problems:all:*');
+    await cache.delPattern('problems:practice:*');
+    await cache.del(`problem:${problemId}:public`);
+    await cache.del(`problem:${problemId}:includeHidden`);
+    await cache.delPattern('contests:list');
+    await cache.delPattern('contest:*');
+
     return getProblemById(problemId, runner, { includeHidden: true });
   } catch (error) {
     await runner.rollback();
@@ -205,6 +233,14 @@ async function deleteProblem(id) {
 
   await recordLog('Problem', `Deleted problem #${problemId}`, 'Warning');
 
+  // Invalidate caches
+  await cache.delPattern('problems:all:*');
+  await cache.delPattern('problems:practice:*');
+  await cache.del(`problem:${problemId}:public`);
+  await cache.del(`problem:${problemId}:includeHidden`);
+  await cache.delPattern('contests:list');
+  await cache.delPattern('contest:*');
+
   return { deleted: true };
 }
 
@@ -214,21 +250,24 @@ async function getProblemTestcases(id, executor = pool, options = {}) {
 }
 
 async function getPracticeProblems(userId) {
-  const query = `
-    SELECT p.id, p.title, p.description, p.difficulty, p.topic, p.is_practice AS isPractice,
-      CASE
-        WHEN SUM(CASE WHEN s.verdict = 'Accepted' THEN 1 ELSE 0 END) > 0 THEN 'Solved'
-        WHEN COUNT(s.id) > 0 THEN 'Attempted'
-        ELSE 'Unattempted'
-      END AS user_status
-    FROM problems p
-    LEFT JOIN submissions s ON p.id = s.problem_id AND s.user_id = ?
-    WHERE p.is_practice = 1
-    GROUP BY p.id
-    ORDER BY p.id DESC
-  `;
-  const [rows] = await pool.query(query, [userId || 0]);
-  return rows;
+  const cacheKey = `problems:practice:${userId || 0}`;
+  return cache.cacheOrFetch(cacheKey, 300, async () => {
+    const query = `
+      SELECT p.id, p.title, p.description, p.difficulty, p.topic, p.is_practice AS isPractice,
+        CASE
+          WHEN SUM(CASE WHEN s.verdict = 'Accepted' THEN 1 ELSE 0 END) > 0 THEN 'Solved'
+          WHEN COUNT(s.id) > 0 THEN 'Attempted'
+          ELSE 'Unattempted'
+        END AS user_status
+      FROM problems p
+      LEFT JOIN submissions s ON p.id = s.problem_id AND s.user_id = ?
+      WHERE p.is_practice = 1
+      GROUP BY p.id
+      ORDER BY p.id DESC
+    `;
+    const [rows] = await pool.query(query, [userId || 0]);
+    return rows;
+  });
 }
 
 module.exports = {

@@ -4,6 +4,7 @@ const { pool } = require('../database/connection');
 const HttpError = require('../utils/httpError');
 const { recordLog, listLogs } = require('./adminLogService');
 const problemService = require('./problemService');
+const cache = require('../utils/cache');
 
 function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -255,61 +256,66 @@ function computeContestStatus(contest) {
 
 async function listContests(search = '') {
   const term = normalizeText(search);
-  let sql = 'SELECT id, contest_name, contest_code, description, start_date, start_time, end_date, end_time, duration, visibility, access_control, allowed_users, status, created_at, updated_at FROM contests ORDER BY start_date DESC, start_time DESC, id DESC';
 
-  const [rows] = await pool.query(sql);
-
-  const mapped = rows.map((row) => ({
-    ...row,
-    status: computeContestStatus(row)
-  }));
+  const allContests = await cache.cacheOrFetch('contests:list', 300, async () => {
+    const sql = 'SELECT id, contest_name, contest_code, description, start_date, start_time, end_date, end_time, duration, visibility, access_control, allowed_users, status, created_at, updated_at FROM contests ORDER BY start_date DESC, start_time DESC, id DESC';
+    const [rows] = await pool.query(sql);
+    return rows.map((row) => ({
+      ...row,
+      status: computeContestStatus(row)
+    }));
+  });
 
   if (term) {
     const termLower = term.toLowerCase();
-    return mapped.filter((c) =>
+    return allContests.filter((c) =>
       c.contest_name.toLowerCase().includes(termLower) ||
       c.contest_code.toLowerCase().includes(termLower) ||
       c.status.toLowerCase().includes(termLower)
     );
   }
 
-  return mapped;
+  return allContests;
 }
 
 async function getContestById(id) {
   const contestId = parsePositiveId(id, 'contest id');
-  const [rows] = await pool.query(
-    'SELECT id, contest_name, contest_code, description, start_date, start_time, end_date, end_time, duration, visibility, access_control, allowed_users, status, created_at, updated_at FROM contests WHERE id = ?',
-    [contestId]
-  );
+  const cacheKey = `contest:${contestId}`;
 
-  if (rows.length === 0) {
-    throw new HttpError(404, 'Contest not found');
-  }
+  return cache.cacheOrFetch(cacheKey, 300, async () => {
+    const [rows] = await pool.query(
+      'SELECT id, contest_name, contest_code, description, start_date, start_time, end_date, end_time, duration, visibility, access_control, allowed_users, status, created_at, updated_at FROM contests WHERE id = ?',
+      [contestId]
+    );
 
-  const contest = rows[0];
-  contest.status = computeContestStatus(contest);
+    if (rows.length === 0) {
+      throw new HttpError(404, 'Contest not found');
+    }
 
-  const [problemRows] = await pool.query(
-    'SELECT p.id, p.title FROM contest_problems cp INNER JOIN problems p ON p.id = cp.problem_id WHERE cp.contest_id = ? ORDER BY cp.id ASC',
-    [contestId]
-  );
+    const contest = rows[0];
+    contest.status = computeContestStatus(contest);
 
-  const [participantRows] = await pool.query(
-    'SELECT u.id, u.name, u.email FROM contest_participants cp INNER JOIN users u ON u.id = cp.user_id WHERE cp.contest_id = ? ORDER BY cp.id ASC',
-    [contestId]
-  );
+    const [problemRows] = await pool.query(
+      'SELECT p.id, p.title FROM contest_problems cp INNER JOIN problems p ON p.id = cp.problem_id WHERE cp.contest_id = ? ORDER BY cp.id ASC',
+      [contestId]
+    );
 
-  return {
-    ...contest,
-    problems: problemRows,
-    participants: participantRows,
-    leaderboard: participantRows.map((participant, index) => ({
-      rank: index + 1,
-      name: participant.name,
-      score: Math.max(0, 1000 - index * 80)
-    }))
-  };
+    const [participantRows] = await pool.query(
+      'SELECT u.id, u.name, u.email FROM contest_participants cp INNER JOIN users u ON u.id = cp.user_id WHERE cp.contest_id = ? ORDER BY cp.id ASC',
+      [contestId]
+    );
+
+    return {
+      ...contest,
+      problems: problemRows,
+      participants: participantRows,
+      leaderboard: participantRows.map((participant, index) => ({
+        rank: index + 1,
+        name: participant.name,
+        score: Math.max(0, 1000 - index * 80)
+      }))
+    };
+  });
 }
 
 async function createContest(payload) {
@@ -334,6 +340,9 @@ async function createContest(payload) {
     await recordLog('Contest', `Created contest #${result.insertId} (${contest.contestName})`, 'Info', connection);
 
     await connection.commit();
+
+    // Invalidate caches
+    await cache.del('contests:list');
 
     return getContestById(result.insertId);
   } catch (error) {
@@ -374,6 +383,10 @@ async function updateContest(id, payload) {
 
     await connection.commit();
 
+    // Invalidate caches
+    await cache.del('contests:list');
+    await cache.del(`contest:${contestId}`);
+
     return getContestById(contestId);
   } catch (error) {
     await connection.rollback();
@@ -394,6 +407,10 @@ async function setContestStatus(id, status) {
 
   await recordLog('Contest', `Set contest #${contestId} status to ${nextStatus}`, 'Warning');
 
+  // Invalidate caches
+  await cache.del('contests:list');
+  await cache.del(`contest:${contestId}`);
+
   return getContestById(contestId);
 }
 
@@ -404,12 +421,19 @@ async function deleteContest(id) {
     throw new HttpError(404, 'Contest not found');
   }
   await recordLog('Contest', `Deleted contest #${contestId}`, 'Warning');
+
+  // Invalidate caches
+  await cache.del('contests:list');
+  await cache.del(`contest:${contestId}`);
+
   return { deleted: true };
 }
 
 async function listNotices() {
-  const [rows] = await pool.query('SELECT id, title, content, created_at FROM notices ORDER BY id DESC');
-  return rows;
+  return cache.cacheOrFetch('notices:list', 300, async () => {
+    const [rows] = await pool.query('SELECT id, title, content, created_at FROM notices ORDER BY id DESC');
+    return rows;
+  });
 }
 
 async function createNotice(payload) {
@@ -427,6 +451,9 @@ async function createNotice(payload) {
   
   await recordLog('Notice', `Created notice #${result.insertId} (${title})`, 'Info');
 
+  // Invalidate caches
+  await cache.del('notices:list');
+
   return { id: result.insertId, title, content };
 }
 
@@ -438,6 +465,10 @@ async function deleteNotice(id) {
   }
 
   await recordLog('Notice', `Deleted notice #${noticeId}`, 'Warning');
+
+  // Invalidate caches
+  await cache.del('notices:list');
+
   return { deleted: true };
 }
 

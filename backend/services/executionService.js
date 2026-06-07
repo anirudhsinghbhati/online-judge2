@@ -1,5 +1,6 @@
 const HttpError = require('../utils/httpError');
 const { getProblemTestcases, parseProblemId } = require('./problemService');
+const cache = require('../utils/cache');
 
 const judge0BaseUrl = (process.env.JUDGE0_API_URL || 'http://65.0.173.238:2358').replace(/\/+$/, '');
 const judge0AuthToken = process.env.JUDGE0_AUTH_TOKEN || '';
@@ -190,6 +191,9 @@ async function saveSubmissionAndStats(userId, problemId, code, languageId, verdi
     );
 
     await connection.commit();
+
+    // Invalidate user practice problems status cache
+    await cache.del(`problems:practice:${userId}`);
   } catch (error) {
     await connection.rollback();
     console.error('Failed to save submission or update user statistics:', error);
