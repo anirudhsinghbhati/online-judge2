@@ -1,0 +1,109 @@
+services:
+  # 1. Main Application Database (MySQL)
+  mysql-db:
+    image: mysql:8.0
+    container_name: code-runner-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: code_judge_mvp
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # Automatically initializes database schema on first container startup
+      - ./backend/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    restart: always
+
+  # 2. Main Application Rate Limiter (Redis)
+  redis-server:
+    image: redis:7-alpine
+    container_name: code-runner-redis
+    ports:
+      - "6379:6379"
+    restart: always
+
+  # 3. Judge0 Database (PostgreSQL)
+  judge0-db:
+    image: postgres:16-alpine
+    container_name: judge0-postgres
+    environment:
+      POSTGRES_DB: judge0
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: judge0
+    volumes:
+      - judge0_db_data:/var/lib/postgresql/data
+    restart: always
+
+  # 4. Judge0 Queue (Redis)
+  judge0-redis:
+    image: redis:7-alpine
+    container_name: judge0-redis-queue
+    command: redis-server --save ""
+    restart: always
+
+  # 5. Judge0 Server
+  judge0-server:
+    image: judge0/judge0:1.13.0
+    container_name: judge0-api-server
+    ports:
+      - "2358:2358"
+    privileged: true
+    volumes:
+      - ./judge0.conf:/judge0.conf:ro
+    depends_on:
+      - judge0-db
+      - judge0-redis
+    restart: always
+
+  # 6. Judge0 Worker
+  judge0-worker:
+    image: judge0/judge0:1.13.0
+    container_name: judge0-execution-worker
+    command: ["./scripts/workers"]
+    privileged: true
+    volumes:
+      - ./judge0.conf:/judge0.conf:ro
+    depends_on:
+      - judge0-db
+      - judge0-redis
+    restart: always
+
+  # 7. Application API Backend (Node.js)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: code-runner-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - DB_HOST=mysql-db
+      - DB_USER=root
+      - DB_PASSWORD=root
+      - DB_NAME=code_judge_mvp
+      - DB_PORT=3306
+      - REDIS_URL=redis://redis-server:6379
+      - JUDGE0_API_URL=http://judge0-server:2358
+      - EXECUTION_TIMEOUT_MS=5000
+    depends_on:
+      - mysql-db
+      - redis-server
+      - judge0-server
+    restart: always
+
+  # 8. Application Frontend Web Server (React & Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: code-runner-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  mysql_data:
+  judge0_db_data:
