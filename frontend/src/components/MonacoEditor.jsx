@@ -2,7 +2,7 @@ import Editor from '@monaco-editor/react';
 
 function MonacoEditor({ value, onChange, language = 'cpp', height = '420px', className = '' }) {
   return (
-    <div className={`h-full overflow-hidden rounded-2xl border border-white/10 bg-[#07111f] shadow-glow ${className}`}>
+    <div className={`h-full overflow-hidden rounded-2xl border border-white/10 bg-[#0d0d11] shadow-glow ${className}`}>
       <Editor
         height={height}
         theme="vs-dark"
@@ -20,10 +20,10 @@ function MonacoEditor({ value, onChange, language = 'cpp', height = '420px', cla
               { token: 'number', foreground: 'f59e0b' }
             ],
             colors: {
-              'editor.background': '#07111f',
-              'editor.lineHighlightBackground': '#102036',
+              'editor.background': '#0d0d11',
+              'editor.lineHighlightBackground': '#18181d',
               'editorCursor.foreground': '#f8fafc',
-              'editorIndentGuide.background1': '#243246',
+              'editorIndentGuide.background1': '#26262e',
               'editorIndentGuide.activeBackground1': '#38bdf8'
             }
           });

@@ -235,7 +235,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#070b19] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.25),rgba(255,255,255,0))] text-slate-100 flex flex-col justify-center items-center px-4 py-12">
+    <div className="min-h-screen bg-[#0a0a0c] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(148,163,184,0.08),rgba(255,255,255,0))] text-slate-100 flex flex-col justify-center items-center px-4 py-12">
       {/* Branding */}
       <div className="absolute top-10 flex items-center gap-2 group select-none">
         <span className="h-3.5 w-3.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_15px_rgba(34,211,238,0.8)]" />

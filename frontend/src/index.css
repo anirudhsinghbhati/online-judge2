@@ -18,9 +18,9 @@ body {
   margin: 0;
   font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background:
-    radial-gradient(circle at top left, rgba(56, 189, 248, 0.15), transparent 30%),
-    radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.12), transparent 26%),
-    linear-gradient(180deg, #020617 0%, #060d1a 50%, #08101e 100%);
+    radial-gradient(circle at top left, rgba(148, 163, 184, 0.08), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(148, 163, 184, 0.05), transparent 26%),
+    linear-gradient(180deg, #0a0a0c 0%, #0e0e11 50%, #121215 100%);
   color: #e2e8f0;
   -webkit-font-smoothing: antialiased;
 }
@@ -35,10 +35,10 @@ body {
 }
 
 .glass-panel {
-  background: rgba(8, 15, 31, 0.82);
-  border: 1px solid rgba(148, 163, 184, 0.15);
+  background: rgba(15, 16, 20, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(20px);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
 }
 
 .scrollbar-thin::-webkit-scrollbar {

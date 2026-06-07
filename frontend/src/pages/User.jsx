@@ -336,75 +336,23 @@ function UserWorkspace() {
 
   return (
     <UserLayout fullWidth>
-      <div className="w-full flex-1 flex flex-col">
+      <div className="w-full flex-1 flex flex-col min-h-0 overflow-hidden">
         
-        {/* Navigation / Mode Top Panel */}
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-white/10 bg-slate-950/60 px-4 py-3 backdrop-blur-xl">
-          <div className="flex flex-wrap items-center gap-3">
-            
-            {/* Back link */}
-            <Link
-              to={contestId ? `/user/contests/${contestId}` : '/user/practice'}
-              className="text-xs font-semibold text-slate-400 hover:text-cyan-300 transition pr-2 flex items-center gap-1"
-            >
-              &larr; {contestId ? 'Back to Contest' : 'Back to Practice'}
-            </Link>
-
-            <span className="text-slate-600 font-mono">|</span>
-
-            {/* Current Context Mode tag */}
-            <div className="text-xs font-semibold text-slate-300 flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-3 py-1.5">
-              <span className={`h-1.5 w-1.5 rounded-full ${contestId ? 'bg-amber-400 animate-pulse' : 'bg-cyan-400'}`} />
-              {contestId ? `Contest: ${selectedContest?.contest_name || 'Loading...'}` : 'Practice Arena'}
-            </div>
-
-            {/* Problem Selector Dropdown */}
-            {problemsToShow.length > 0 && (
-              <label className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs text-slate-300">
-                <span className="text-slate-500">Workspace Problem:</span>
-                <select
-                  value={selectedProblemId || ''}
-                  onChange={(event) => selectProblem(Number(event.target.value))}
-                  className="bg-transparent text-slate-100 outline-none font-semibold cursor-pointer"
-                >
-                  {problemsToShow.map((problem) => (
-                    <option key={problem.id} value={problem.id} className="bg-slate-950 text-slate-100">
-                      #{problem.id} {problem.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-          </div>
-
-          {/* Active Contest Countdown Timer */}
-          {contestId && selectedContest?.status === 'Active' && contestTimeLeft && (
-            <div className="text-xs font-bold font-mono text-rose-400 flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 rounded-full px-3.5 py-1.5 animate-pulse shrink-0">
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-              <span>Time Left: {contestTimeLeft}</span>
-            </div>
-          )}
-        </div>
-
         {error ? (
-          <div className="mb-4 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+          <div className="mb-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-4 py-2 text-sm text-rose-100">
             {error}
           </div>
         ) : null}
 
         {/* RENDER LOCKOUT OVERLAY IF CONTEST IS UPCOMING */}
         {selectedContest && selectedContest.status === 'Upcoming' ? (
-          <div className="flex-1 flex flex-col items-center justify-center rounded-[20px] border border-white/10 bg-slate-950/80 p-8 text-center backdrop-blur-xl shadow-glow min-h-[500px]">
+          <div className="flex-1 flex flex-col items-center justify-center rounded-xl border border-white/10 bg-slate-950/80 p-8 text-center backdrop-blur-xl shadow-glow min-h-[500px]">
             <span className="text-5xl mb-6 animate-pulse select-none">🔒</span>
             <h3 className="text-2xl font-bold text-white uppercase tracking-wider">Contest is Locked</h3>
             <p className="mt-4 text-slate-300 max-w-md text-sm leading-relaxed">
               The contest <span className="font-semibold text-cyan-300">"{selectedContest.contest_name}"</span> has not started yet. It is scheduled to start at:
             </p>
-            <div className="mt-4 bg-white/5 rounded-2xl px-6 py-4 border border-white/5 font-mono text-cyan-200">
+            <div className="mt-4 bg-white/5 rounded-xl px-6 py-4 border border-white/5 font-mono text-cyan-200">
               {selectedContest.start_date} @ {selectedContest.start_time}
             </div>
             <p className="mt-4 text-xs text-slate-500">
@@ -413,10 +361,63 @@ function UserWorkspace() {
           </div>
         ) : (
           // RENDER CODING CONSOLE
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] flex-1">
-            <aside className="glass-panel flex min-h-[550px] flex-col overflow-hidden rounded-[20px] shadow-glow border border-white/10 bg-slate-950/40">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3 bg-slate-950/20">
+          <section className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] flex-1 min-h-0 overflow-hidden p-2">
+            <div className="flex flex-col gap-2 h-full overflow-hidden">
+              {/* Navigation / Mode Top Panel */}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 backdrop-blur-xl">
                 <div className="flex flex-wrap items-center gap-2">
+                  
+                  {/* Back link */}
+                  <Link
+                    to={contestId ? `/user/contests/${contestId}` : '/user/practice'}
+                    className="text-xs font-semibold text-slate-400 hover:text-cyan-300 transition pr-2 flex items-center gap-1"
+                  >
+                    &larr; {contestId ? 'Back to Contest' : 'Back to Practice'}
+                  </Link>
+
+                  <span className="text-slate-600 font-mono">|</span>
+
+                  {/* Current Context Mode tag */}
+                  <div className="text-xs font-semibold text-slate-300 flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-3 py-1">
+                    <span className={`h-1.5 w-1.5 rounded-full ${contestId ? 'bg-amber-400 animate-pulse' : 'bg-cyan-400'}`} />
+                    {contestId ? `Contest: ${selectedContest?.contest_name || 'Loading...'}` : 'Practice Arena'}
+                  </div>
+
+                  {/* Problem Selector Dropdown */}
+                  {problemsToShow.length > 0 && (
+                    <label className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1 text-xs text-slate-300">
+                      <span className="text-slate-500">Workspace Problem:</span>
+                      <select
+                        value={selectedProblemId || ''}
+                        onChange={(event) => selectProblem(Number(event.target.value))}
+                        className="bg-transparent text-slate-100 outline-none font-semibold cursor-pointer"
+                      >
+                        {problemsToShow.map((problem) => (
+                          <option key={problem.id} value={problem.id} className="bg-slate-950 text-slate-100">
+                            #{problem.id} {problem.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                </div>
+
+                {/* Active Contest Countdown Timer */}
+                {contestId && selectedContest?.status === 'Active' && contestTimeLeft && (
+                  <div className="text-xs font-bold font-mono text-rose-400 flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 rounded-full px-3.5 py-1.5 animate-pulse shrink-0">
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    <span>Time Left: {contestTimeLeft}</span>
+                  </div>
+                )}
+              </div>
+
+              <aside className="glass-panel flex flex-1 flex-col overflow-hidden rounded-xl shadow-glow border border-white/10 bg-slate-950/40">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-3 py-1.5 bg-slate-950/20">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {renderTabButton('Description', activeMainTab === 'description', () => setActiveMainTab('description'))}
                   {contestId && selectedContest?.status === 'Active' ? (
                     <>
@@ -437,7 +438,7 @@ function UserWorkspace() {
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-auto px-5 py-4 scrollbar-thin">
+              <div className="min-h-0 flex-1 overflow-auto px-4 py-3 scrollbar-thin">
                 {loadingProblem ? (
                   <div className="space-y-4">
                     <div className="h-6 w-48 animate-pulse rounded bg-white/10" />
@@ -467,11 +468,11 @@ function UserWorkspace() {
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
+                    <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
                       <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">{selectedProblem.description}</p>
                     </div>
 
-                    <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
+                    <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
                       <h4 className="text-sm font-semibold text-white">Sample Testcases</h4>
                       <div className="mt-4 space-y-3">
                         {testcases.length > 0 ? (
@@ -526,11 +527,12 @@ function UserWorkspace() {
                 )}
               </div>
             </aside>
+          </div>
 
-            <div className="flex flex-col gap-4 min-h-[550px]">
-              <section className="glass-panel flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] shadow-glow border border-white/10 bg-slate-950/40">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3 bg-slate-950/20">
-                  <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-col gap-2 h-full overflow-hidden">
+              <section className="glass-panel flex flex-col overflow-hidden rounded-xl shadow-glow border border-white/10 bg-slate-950/40">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-3 py-1.5 bg-slate-950/20">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <label className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
                       <span className="text-slate-500">Language</span>
                       <select
@@ -549,7 +551,7 @@ function UserWorkspace() {
                       type="button"
                       onClick={handleRunCode}
                       disabled={runningCode || submittingCode || !selectedProblemId}
-                      className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {runningCode ? 'Running...' : 'Run'}
                     </button>
@@ -557,14 +559,14 @@ function UserWorkspace() {
                       type="button"
                       onClick={handleSubmitCode}
                       disabled={runningCode || submittingCode || !selectedProblemId}
-                      className="rounded-full bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-full bg-emerald-400 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {submittingCode ? 'Submitting...' : 'Submit'}
                     </button>
                   </div>
                 </div>
 
-                <div className="min-h-[250px] flex-1 p-4">
+                <div className="h-[320px] p-1 bg-slate-950/20">
                   <MonacoEditor
                     value={code}
                     onChange={setCode}
@@ -575,13 +577,13 @@ function UserWorkspace() {
                 </div>
               </section>
 
-              <section className="glass-panel min-h-[250px] overflow-hidden rounded-[20px] shadow-glow border border-white/10 bg-slate-950/40">
-                <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3 bg-slate-950/20">
+              <section className="glass-panel flex-1 flex flex-col overflow-hidden rounded-xl shadow-glow border border-white/10 bg-slate-950/40">
+                <div className="flex items-center gap-2 border-b border-white/10 px-3 py-1.5 bg-slate-950/20">
                   {renderTabButton('Testcase', activeBottomTab === 'testcase', () => setActiveBottomTab('testcase'))}
                   {renderTabButton('Test Result', activeBottomTab === 'result', () => setActiveBottomTab('result'))}
                 </div>
 
-                <div className="p-4">
+                <div className="p-3 flex-1 overflow-y-auto scrollbar-thin">
                   {activeBottomTab === 'testcase' ? (
                     activeTestcase ? (
                       <div className="grid gap-4 md:grid-cols-2">

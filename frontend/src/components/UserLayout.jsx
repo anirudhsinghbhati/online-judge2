@@ -97,9 +97,9 @@ export default function UserLayout({ children, fullWidth }) {
   const initial = String(activeUser?.name || 'U').charAt(0).toUpperCase();
 
   return (
-    <div className="min-h-screen bg-[#070b19] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.2),rgba(255,255,255,0))] text-slate-100 flex flex-col">
+    <div className={`bg-[#0a0a0c] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(148,163,184,0.08),rgba(255,255,255,0))] text-slate-100 flex flex-col ${fullWidth ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
       {/* GLOBAL NAVBAR */}
-      <header className="sticky top-0 z-40 w-full border-b border-white/5 bg-slate-950/70 backdrop-blur-xl px-4 py-3 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-40 w-full border-b border-white/5 bg-slate-950/70 backdrop-blur-xl px-4 py-2 sm:px-6 lg:px-8">
         <div className={`mx-auto flex items-center justify-between gap-4 ${fullWidth ? 'w-full' : 'max-w-7xl'}`}>
           
           {/* Logo & Brand Name */}
@@ -301,7 +301,7 @@ export default function UserLayout({ children, fullWidth }) {
       </div>
 
       {/* MAIN CONTAINER */}
-      <main className={`flex-1 w-full mx-auto px-4 py-6 sm:px-6 lg:px-8 flex flex-col animate-fade-in ${fullWidth ? 'max-w-none' : 'max-w-7xl'}`}>
+      <main className={`flex-1 w-full mx-auto flex flex-col animate-fade-in min-h-0 ${fullWidth ? 'max-w-none p-0' : 'max-w-7xl px-4 py-3 sm:px-6 lg:px-8'}`}>
         {children}
       </main>
     </div>
