@@ -21,7 +21,7 @@ async function requestJson(path, options = {}) {
   return payload.data;
 }
 
-export default function UserLayout({ children }) {
+export default function UserLayout({ children, fullWidth }) {
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -100,7 +100,7 @@ export default function UserLayout({ children }) {
     <div className="min-h-screen bg-[#070b19] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.2),rgba(255,255,255,0))] text-slate-100 flex flex-col">
       {/* GLOBAL NAVBAR */}
       <header className="sticky top-0 z-40 w-full border-b border-white/5 bg-slate-950/70 backdrop-blur-xl px-4 py-3 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl flex items-center justify-between gap-4">
+        <div className={`mx-auto flex items-center justify-between gap-4 ${fullWidth ? 'w-full' : 'max-w-7xl'}`}>
           
           {/* Logo & Brand Name */}
           <Link to="/user" className="flex items-center gap-2 group">
@@ -301,7 +301,7 @@ export default function UserLayout({ children }) {
       </div>
 
       {/* MAIN CONTAINER */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6 sm:px-6 lg:px-8 flex flex-col animate-fade-in">
+      <main className={`flex-1 w-full mx-auto px-4 py-6 sm:px-6 lg:px-8 flex flex-col animate-fade-in ${fullWidth ? 'max-w-none' : 'max-w-7xl'}`}>
         {children}
       </main>
     </div>

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from "../firebase";
-import { 
-  GoogleAuthProvider, 
-  signInWithPopup, 
-  signInWithEmailAndPassword, 
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile
 } from "firebase/auth";
@@ -32,16 +32,16 @@ async function requestJson(path, options = {}) {
 
 export default function Login() {
   const navigate = useNavigate();
-  
+
   // Tab control: 'signin' | 'signup'
   const [activeTab, setActiveTab] = useState('signin');
-  
+
   // Form states
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
+
   // UI states
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -90,7 +90,7 @@ export default function Login() {
     try {
       const result = await signInWithPopup(auth, provider);
       const googleUser = result.user;
-      
+
       if (!googleUser.email) {
         throw new Error('Google account is missing an email address.');
       }
@@ -134,7 +134,7 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
-    
+
     // Validations
     if (!email) {
       setError('Please enter your email address.');
@@ -164,10 +164,10 @@ export default function Login() {
       if (activeTab === 'signup') {
         // 1. Firebase Auth Registration
         const result = await createUserWithEmailAndPassword(auth, email, password);
-        
+
         // 2. Set profile display name in Firebase
         await updateProfile(result.user, { displayName: name });
-        
+
         // 3. Register user profile in local DB
         const dbUser = await requestJson('/api/admin/users', {
           method: 'POST',
@@ -185,7 +185,7 @@ export default function Login() {
 
         window.dispatchEvent(new Event('storage'));
         setSuccessMsg('Account created successfully! Redirecting...');
-        
+
         setTimeout(() => {
           navigate('/user');
         }, 1200);
@@ -193,7 +193,7 @@ export default function Login() {
       } else {
         // Firebase Auth Sign In
         const result = await signInWithEmailAndPassword(auth, email, password);
-        
+
         // Lookup profile in DB
         const usersList = await requestJson('/api/admin/users');
         let dbUser = usersList.find(u => u.email.toLowerCase() === email.toLowerCase());
@@ -246,7 +246,7 @@ export default function Login() {
 
       {/* Main glassmorphic wrapper */}
       <div className="glass-panel max-w-md w-full rounded-[32px] border border-white/10 bg-slate-950/65 p-8 shadow-glow backdrop-blur-2xl mt-12 animate-fade-in relative overflow-hidden">
-        
+
         {/* Decorative background glow elements */}
         <div className="absolute -top-16 -right-16 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
         <div className="absolute -bottom-16 -left-16 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
@@ -259,9 +259,8 @@ export default function Login() {
               setError('');
               setSuccessMsg('');
             }}
-            className={`flex-1 pb-4 text-sm font-bold tracking-wider uppercase transition-colors relative ${
-              activeTab === 'signin' ? 'text-cyan-400' : 'text-slate-500 hover:text-slate-300'
-            }`}
+            className={`flex-1 pb-4 text-sm font-bold tracking-wider uppercase transition-colors relative ${activeTab === 'signin' ? 'text-cyan-400' : 'text-slate-500 hover:text-slate-300'
+              }`}
           >
             Sign In
             {activeTab === 'signin' && (
@@ -274,9 +273,8 @@ export default function Login() {
               setError('');
               setSuccessMsg('');
             }}
-            className={`flex-1 pb-4 text-sm font-bold tracking-wider uppercase transition-colors relative ${
-              activeTab === 'signup' ? 'text-cyan-400' : 'text-slate-500 hover:text-slate-300'
-            }`}
+            className={`flex-1 pb-4 text-sm font-bold tracking-wider uppercase transition-colors relative ${activeTab === 'signup' ? 'text-cyan-400' : 'text-slate-500 hover:text-slate-300'
+              }`}
           >
             Register
             {activeTab === 'signup' && (

@@ -2,13 +2,18 @@ const executionService = require('../services/executionService');
 const HttpError = require('../utils/httpError');
 
 async function runCode(req, res) {
-  const { code, input = '', languageId, compilerOptions } = req.body || {};
+  const { code, problemId, input = '', languageId, compilerOptions } = req.body || {};
 
   if (typeof code !== 'string' || !code.trim()) {
     throw new HttpError(400, 'Code is required');
   }
 
-  const result = await executionService.runCode(code, input, languageId, compilerOptions);
+  let result;
+  if (problemId) {
+    result = await executionService.runCodeForProblem(problemId, code, languageId, compilerOptions);
+  } else {
+    result = await executionService.runCode(code, input, languageId, compilerOptions);
+  }
   res.json({ success: true, data: result });
 }
 

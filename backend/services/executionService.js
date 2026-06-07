@@ -202,6 +202,76 @@ async function saveSubmissionAndStats(userId, problemId, code, languageId, verdi
   }
 }
 
+async function runCodeForProblem(problemId, code, languageId = judge0LanguageId, compilerOptions = judge0CompilerOptions, timeoutMs = defaultTimeoutMs) {
+  const parsedProblemId = parseProblemId(problemId);
+  // Fetch only visible (shown) testcases
+  const testcases = await getProblemTestcases(parsedProblemId, pool, { includeHidden: false });
+
+  const details = [];
+  let passedCount = 0;
+  let failedTestcaseNumber = null;
+  let verdict = 'Accepted';
+
+  for (let index = 0; index < testcases.length; index += 1) {
+    const testcase = testcases[index];
+    const creation = await createSubmission(code, testcase.input_data, languageId, compilerOptions);
+    const submission = await waitForSubmission(creation.token, timeoutMs);
+    const execution = buildExecutionResult(submission);
+
+    if (!execution.compiled) {
+      return {
+        verdict: 'Compilation Error',
+        passedCount: 0,
+        totalCount: testcases.length,
+        failedTestcaseNumber: null,
+        compilationErrors: execution.compilationErrors,
+        details: []
+      };
+    }
+
+    const actualOutput = normalizeOutput(execution.stdout);
+    const expectedOutput = normalizeOutput(testcase.expected_output);
+    const passed = !execution.timedOut && actualOutput === expectedOutput && Number(submission?.status?.id) === 3;
+
+    details.push({
+      testcaseNumber: index + 1,
+      input: testcase.input_data,
+      expectedOutput: testcase.expected_output,
+      actualOutput: execution.stdout,
+      stderr: execution.stderr,
+      exitCode: execution.exitCode,
+      timedOut: execution.timedOut,
+      judge0Status: execution.judge0Status,
+      passed
+    });
+
+    if (!passed) {
+      failedTestcaseNumber = index + 1;
+
+      if (execution.timedOut) {
+        verdict = 'Time Limit Exceeded';
+      } else if (Number(submission?.status?.id) >= 7) {
+        verdict = 'Runtime Error';
+      } else {
+        verdict = 'Wrong Answer';
+      }
+
+      break;
+    }
+
+    passedCount += 1;
+  }
+
+  return {
+    verdict,
+    passedCount,
+    totalCount: testcases.length,
+    failedTestcaseNumber,
+    compilationErrors: '',
+    details
+  };
+}
+
 async function submitSolution(problemId, code, languageId = judge0LanguageId, compilerOptions = judge0CompilerOptions, userId = null, timeoutMs = defaultTimeoutMs) {
   if (typeof userId === 'object' && userId !== null) {
     // shift args if needed
@@ -209,7 +279,8 @@ async function submitSolution(problemId, code, languageId = judge0LanguageId, co
     userId = null;
   }
   const parsedProblemId = parseProblemId(problemId);
-  const testcases = await getProblemTestcases(parsedProblemId);
+  // Fetch ALL testcases (both shown/visible and hidden)
+  const testcases = await getProblemTestcases(parsedProblemId, pool, { includeHidden: true });
 
   const details = [];
   let passedCount = 0;
@@ -282,5 +353,6 @@ async function submitSolution(problemId, code, languageId = judge0LanguageId, co
 
 module.exports = {
   runCode,
+  runCodeForProblem,
   submitSolution
 };

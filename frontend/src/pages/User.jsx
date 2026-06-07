@@ -276,10 +276,12 @@ function UserWorkspace() {
       setRunningCode(true);
       setError('');
       setSubmitResult(null);
+      setActiveBottomTab('result');
       const data = await requestJson('/api/run', {
         method: 'POST',
         body: JSON.stringify({
           code,
+          problemId: selectedProblemId,
           languageId: selectedLanguage.judge0LanguageId,
           compilerOptions: selectedLanguage.compilerOptions
         })
@@ -309,6 +311,7 @@ function UserWorkspace() {
       setSubmittingCode(true);
       setError('');
       setRunResult(null);
+      setActiveBottomTab('result');
       const activeUserId = localStorage.getItem('demo_active_user_id');
 
       const data = await requestJson('/api/submit', {
@@ -332,7 +335,7 @@ function UserWorkspace() {
   }
 
   return (
-    <UserLayout>
+    <UserLayout fullWidth>
       <div className="w-full flex-1 flex flex-col">
         
         {/* Navigation / Mode Top Panel */}
