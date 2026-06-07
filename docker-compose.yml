@@ -70,6 +70,7 @@ services:
 
   # 7. Application API Backend (Node.js)
   backend:
+    image: ${DOCKERHUB_USERNAME:-coderunner}/backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -94,6 +95,7 @@ services:
 
   # 8. Application Frontend Web Server (React & Nginx)
   frontend:
+    image: ${DOCKERHUB_USERNAME:-coderunner}/frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile
