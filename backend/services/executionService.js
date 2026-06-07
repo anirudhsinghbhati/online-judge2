@@ -1,6 +1,7 @@
 const HttpError = require('../utils/httpError');
 const { getProblemTestcases, parseProblemId } = require('./problemService');
 const cache = require('../utils/cache');
+const { pool } = require('../database/connection');
 
 const judge0BaseUrl = (process.env.JUDGE0_API_URL || 'http://65.0.173.238:2358').replace(/\/+$/, '');
 const judge0AuthToken = process.env.JUDGE0_AUTH_TOKEN || '';
@@ -166,7 +167,6 @@ async function runCode(code, input = '', languageId = judge0LanguageId, compiler
 
 async function saveSubmissionAndStats(userId, problemId, code, languageId, verdict, passedCount, totalCount) {
   if (!userId) return;
-  const { pool } = require('../database/connection');
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
