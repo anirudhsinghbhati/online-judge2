@@ -12,14 +12,19 @@ const pool = mysql.createPool({
   multipleStatements: false
 });
 
+const { runMigrations } = require('./migrations');
+
 async function verifyDatabaseConnection() {
   const connection = await pool.getConnection();
   try {
     await connection.query('SELECT 1');
+    // Run migrations automatically
+    await runMigrations(pool);
   } finally {
     connection.release();
   }
 }
+
 
 module.exports = {
   pool,
