@@ -3,7 +3,7 @@ import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom'
 
 import MonacoEditor from '../components/MonacoEditor';
 import ResultPanel from '../components/ResultPanel';
-import { DEFAULT_LANGUAGE_KEY, LANGUAGE_OPTIONS, getLanguageOption } from '../constants';
+import { DEFAULT_LANGUAGE_KEY, LANGUAGE_OPTIONS, getLanguageOption, formatContestDateTime } from '../constants';
 import UserLayout from '../components/UserLayout';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
@@ -52,6 +52,16 @@ function UserWorkspace() {
   const [activeBottomTab, setActiveBottomTab] = useState('result');
   const [activeTestcaseIndex, setActiveTestcaseIndex] = useState(0);
   const [contestTimeLeft, setContestTimeLeft] = useState('');
+
+  // Submissions states
+  const [submissions, setSubmissions] = useState([]);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [expandedSubmissionId, setExpandedSubmissionId] = useState(null);
+
+  // Unsaved Warning / Draft states
+  const [isDirty, setIsDirty] = useState(false);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState(null);
 
   // Helper function to extract YYYY-MM-DD cleanly without timezone shifts
   function getYYYYMMDD(dateVal) {
@@ -103,10 +113,10 @@ function UserWorkspace() {
     return () => clearInterval(timerId);
   }, [selectedContest, contestId, navigate]);
 
-  // Tab locking effect: lock Editorial and Solutions tabs during active contests
+  // Tab locking effect: lock Solutions tab during active contests
   useEffect(() => {
     if (contestId && selectedContest?.status === 'Active') {
-      if (activeMainTab === 'editorial' || activeMainTab === 'solutions') {
+      if (activeMainTab === 'solutions') {
         setActiveMainTab('description');
       }
     }
@@ -190,7 +200,17 @@ function UserWorkspace() {
 
         if (!cancelled) {
           setSelectedProblem(data);
-          setCode(getLanguageOption(selectedLanguageKey).starterCode);
+          
+          const userId = localStorage.getItem('demo_active_user_id') || 0;
+          const draftKey = `code_draft_${userId}_${selectedProblemId}_${selectedLanguageKey}`;
+          const savedDraft = localStorage.getItem(draftKey);
+          if (savedDraft !== null) {
+            setCode(savedDraft);
+          } else {
+            setCode(getLanguageOption(selectedLanguageKey).starterCode);
+          }
+          setIsDirty(false);
+          
           setRunResult(null);
           setSubmitResult(null);
           setActiveTestcaseIndex(0);
@@ -213,6 +233,69 @@ function UserWorkspace() {
     };
   }, [selectedProblemId]);
 
+  // Load submissions for current user and problem on demand when tab changes
+  useEffect(() => {
+    if (activeMainTab === 'submissions' && selectedProblemId) {
+      const activeUserId = localStorage.getItem('demo_active_user_id');
+      if (!activeUserId) return;
+
+      let cancelled = false;
+      async function fetchSubmissions() {
+        try {
+          setLoadingSubmissions(true);
+          const data = await requestJson(`/api/users/${activeUserId}/problems/${selectedProblemId}/submissions`);
+          if (!cancelled) {
+            setSubmissions(Array.isArray(data) ? data : []);
+          }
+        } catch (err) {
+          console.error('Failed to load submissions:', err);
+        } finally {
+          if (!cancelled) {
+            setLoadingSubmissions(false);
+          }
+        }
+      }
+      fetchSubmissions();
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [activeMainTab, selectedProblemId]);
+
+  // Intercept navigation links click to block if editor is dirty
+  useEffect(() => {
+    if (!isDirty) return;
+
+    function handleCaptureClick(event) {
+      const anchor = event.target.closest('a');
+      if (anchor) {
+        const href = anchor.getAttribute('href');
+        if (href && !href.startsWith('#')) {
+          // Block React Router navigation click
+          event.preventDefault();
+          event.stopPropagation();
+          setPendingNavigation({ type: 'url', target: href });
+          setShowUnsavedModal(true);
+        }
+      }
+    }
+
+    document.addEventListener('click', handleCaptureClick, true);
+    return () => document.removeEventListener('click', handleCaptureClick, true);
+  }, [isDirty]);
+
+  // Prevent browser window unload/refresh when dirty
+  useEffect(() => {
+    function handleBeforeUnload(e) {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
   const activeResult = useMemo(() => submitResult || runResult, [runResult, submitResult]);
   const testcases = Array.isArray(selectedProblem?.testcases) ? selectedProblem.testcases : [];
   const activeTestcase = testcases[activeTestcaseIndex] || testcases[0] || null;
@@ -230,6 +313,11 @@ function UserWorkspace() {
   }, [contestId, selectedContest, problems]);
 
   function selectProblem(problemId) {
+    if (isDirty) {
+      setPendingNavigation({ type: 'problem', target: problemId });
+      setShowUnsavedModal(true);
+      return;
+    }
     if (contestId) {
       navigate(`/user/problems/${problemId}?contestId=${contestId}`);
     } else {
@@ -245,10 +333,36 @@ function UserWorkspace() {
   function handleLanguageChange(nextLanguageKey) {
     const nextLanguage = getLanguageOption(nextLanguageKey);
     setSelectedLanguageKey(nextLanguage.key);
-    setCode(nextLanguage.starterCode);
+    
+    const userId = localStorage.getItem('demo_active_user_id') || 0;
+    const draftKey = `code_draft_${userId}_${selectedProblemId}_${nextLanguageKey}`;
+    const savedDraft = localStorage.getItem(draftKey);
+    if (savedDraft !== null) {
+      setCode(savedDraft);
+    } else {
+      setCode(nextLanguage.starterCode);
+    }
+    setIsDirty(false);
+
     setRunResult(null);
     setSubmitResult(null);
     setError('');
+  }
+
+  function handleCodeChange(newCode) {
+    setCode(newCode);
+    const userId = localStorage.getItem('demo_active_user_id') || 0;
+    const draftKey = `code_draft_${userId}_${selectedProblemId}_${selectedLanguageKey}`;
+    const savedDraft = localStorage.getItem(draftKey);
+    const baseline = savedDraft !== null ? savedDraft : getLanguageOption(selectedLanguageKey).starterCode;
+    setIsDirty(newCode !== baseline);
+  }
+
+  function handleSaveCode() {
+    const userId = localStorage.getItem('demo_active_user_id') || 0;
+    const draftKey = `code_draft_${userId}_${selectedProblemId}_${selectedLanguageKey}`;
+    localStorage.setItem(draftKey, code);
+    setIsDirty(false);
   }
 
   function renderTabButton(label, isActive, onClick) {
@@ -353,7 +467,7 @@ function UserWorkspace() {
               The contest <span className="font-semibold text-cyan-300">"{selectedContest.contest_name}"</span> has not started yet. It is scheduled to start at:
             </p>
             <div className="mt-4 bg-white/5 rounded-xl px-6 py-4 border border-white/5 font-mono text-cyan-200">
-              {selectedContest.start_date} @ {selectedContest.start_time}
+              {formatContestDateTime(selectedContest.start_date, selectedContest.start_time)}
             </div>
             <p className="mt-4 text-xs text-slate-500">
               Duration: {selectedContest.duration} | Access: {selectedContest.visibility}
@@ -421,16 +535,12 @@ function UserWorkspace() {
                   {renderTabButton('Description', activeMainTab === 'description', () => setActiveMainTab('description'))}
                   {contestId && selectedContest?.status === 'Active' ? (
                     <>
-                      {renderTabButton('🔒 Editorial', activeMainTab === 'editorial', () => {
-                        setError('Editorial is locked during the active contest.');
-                      })}
                       {renderTabButton('🔒 Solutions', activeMainTab === 'solutions', () => {
                         setError('Solutions are locked during the active contest.');
                       })}
                     </>
                   ) : (
                     <>
-                      {renderTabButton('Editorial', activeMainTab === 'editorial', () => setActiveMainTab('editorial'))}
                       {renderTabButton('Solutions', activeMainTab === 'solutions', () => setActiveMainTab('solutions'))}
                     </>
                   )}
@@ -477,21 +587,13 @@ function UserWorkspace() {
                       <div className="mt-4 space-y-3">
                         {testcases.length > 0 ? (
                           testcases.map((testcase, index) => {
-                            const isSelected = index === activeTestcaseIndex;
-
                             return (
-                              <button
+                              <div
                                 key={`${index}-${testcase.input_data}`}
-                                type="button"
-                                onClick={() => setActiveTestcaseIndex(index)}
-                                className={`w-full rounded-2xl border p-4 text-left transition ${isSelected
-                                  ? 'border-cyan-400/40 bg-cyan-400/10'
-                                  : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
-                                }`}
+                                className="w-full rounded-2xl border border-white/10 bg-slate-950/45 p-4 text-left"
                               >
                                 <div className="flex items-center justify-between gap-3">
                                   <span className="text-sm font-semibold text-white">Testcase #{index + 1}</span>
-                                  <span className="text-xs text-slate-400">Click to preview</span>
                                 </div>
                                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                                   <div>
@@ -507,7 +609,7 @@ function UserWorkspace() {
                                     </pre>
                                   </div>
                                 </div>
-                              </button>
+                              </div>
                             );
                           })
                         ) : (
@@ -518,11 +620,122 @@ function UserWorkspace() {
                       </div>
                     </div>
                   </div>
+                ) : activeMainTab === 'solutions' && selectedProblem ? (
+                  <div className="space-y-4 h-full flex flex-col min-h-0">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">Official Solution</h3>
+                      <p className="text-xs text-slate-400 mt-1">Review the official approach and implementation for this problem.</p>
+                    </div>
+                    {selectedProblem.officialSolution ? (
+                      <div className="flex-1 min-h-[350px] border border-white/10 rounded-2xl overflow-hidden bg-slate-950/40">
+                        <MonacoEditor
+                          value={selectedProblem.officialSolution}
+                          language={selectedLanguage.monacoLanguage}
+                          readOnly={true}
+                          height="100%"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex h-full min-h-[200px] items-center justify-center rounded-2xl border border-dashed border-white/15 bg-white/5 p-6 text-sm text-slate-400">
+                        No official solution has been posted for this problem yet.
+                      </div>
+                    )}
+                  </div>
+                ) : activeMainTab === 'submissions' && selectedProblem ? (
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">Submission History</h3>
+                      <p className="text-xs text-slate-400 mt-1">Review your past code submissions and results for this problem.</p>
+                    </div>
+
+                    {loadingSubmissions ? (
+                      <div className="space-y-3">
+                        <div className="h-16 animate-pulse rounded-2xl bg-white/5" />
+                        <div className="h-16 animate-pulse rounded-2xl bg-white/5" />
+                      </div>
+                    ) : submissions.length > 0 ? (
+                      <div className="space-y-3">
+                        {submissions.map((sub) => {
+                          const isExpanded = expandedSubmissionId === sub.id;
+                          const formattedTime = new Date(sub.created_at).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          });
+                          
+                          const langLabel = LANGUAGE_OPTIONS.find(l => l.judge0LanguageId === sub.language_id)?.label || 'Code';
+
+                          let verdictColor = 'text-slate-400 bg-slate-500/10 border-slate-500/20';
+                          if (sub.verdict === 'Accepted') {
+                            verdictColor = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+                          } else if (sub.verdict === 'Wrong Answer') {
+                            verdictColor = 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+                          } else if (sub.verdict === 'Time Limit Exceeded') {
+                            verdictColor = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+                          } else if (sub.verdict === 'Runtime Error' || sub.verdict === 'Compilation Error') {
+                            verdictColor = 'text-rose-300 bg-rose-950/25 border-rose-900/30';
+                          }
+
+                          return (
+                            <div key={sub.id} className="rounded-2xl border border-white/10 bg-slate-950/35 overflow-hidden transition-all duration-200">
+                              <div
+                                onClick={() => setExpandedSubmissionId(isExpanded ? null : sub.id)}
+                                className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/[0.02] transition select-none"
+                              >
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <span className={`rounded-full border px-3 py-1 text-xs font-bold ${verdictColor}`}>
+                                    {sub.verdict}
+                                  </span>
+                                  <span className="text-xs text-slate-400 font-semibold">{langLabel}</span>
+                                  <span className="text-xs text-slate-500 font-mono">Passed: {sub.passed_count}/{sub.total_count}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-slate-500 font-mono">{formattedTime}</span>
+                                  <span className="text-slate-400 text-sm">{isExpanded ? '▲' : '▼'}</span>
+                                </div>
+                              </div>
+
+                              {isExpanded && (
+                                <div className="border-t border-white/5 p-4 bg-slate-950/80 space-y-3">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Submitted Code</span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setCode(sub.code);
+                                        setIsDirty(true);
+                                      }}
+                                      className="rounded-xl border border-cyan-400/30 bg-cyan-400/15 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:bg-cyan-400 hover:text-slate-950 hover:border-transparent transition"
+                                    >
+                                      Load into Editor
+                                    </button>
+                                  </div>
+                                  <div className="h-[250px] border border-white/10 rounded-xl overflow-hidden bg-slate-900">
+                                    <MonacoEditor
+                                      value={sub.code}
+                                      language={LANGUAGE_OPTIONS.find(l => l.judge0LanguageId === sub.language_id)?.monacoLanguage || 'cpp'}
+                                      readOnly={true}
+                                      height="100%"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="flex h-full min-h-[200px] items-center justify-center rounded-2xl border border-dashed border-white/15 bg-white/5 p-6 text-sm text-slate-400">
+                        You have not submitted any solutions for this problem yet.
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-white/15 bg-white/5 p-6 text-sm text-slate-300">
-                    {activeMainTab === 'description'
-                      ? 'Select a problem to start coding.'
-                      : 'This section can host editorial, solutions, and submission history later.'}
+                    Select a problem to start coding.
                   </div>
                 )}
               </div>
@@ -549,6 +762,14 @@ function UserWorkspace() {
                     </label>
                     <button
                       type="button"
+                      onClick={handleSaveCode}
+                      disabled={!isDirty || !selectedProblemId}
+                      className="rounded-full bg-cyan-400/15 border border-cyan-400/30 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {isDirty ? '● Save Draft' : '✓ Saved'}
+                    </button>
+                    <button
+                      type="button"
                       onClick={handleRunCode}
                       disabled={runningCode || submittingCode || !selectedProblemId}
                       className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
@@ -569,7 +790,7 @@ function UserWorkspace() {
                 <div className="h-[320px] p-1 bg-slate-950/20">
                   <MonacoEditor
                     value={code}
-                    onChange={setCode}
+                    onChange={handleCodeChange}
                     language={selectedLanguage.monacoLanguage}
                     height="100%"
                     className="h-full"
@@ -616,6 +837,91 @@ function UserWorkspace() {
           </section>
         )}
       </div>
+
+      {/* UNSAVED CHANGES MODAL */}
+      {showUnsavedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-950/90 p-6 shadow-glow backdrop-blur-xl space-y-6">
+            <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+              <span className="text-3xl select-none">⚠️</span>
+              <div>
+                <h3 className="text-lg font-bold text-white">Unsaved Changes</h3>
+                <p className="text-xs text-slate-400 mt-0.5">You have unsaved changes in your code editor.</p>
+              </div>
+            </div>
+            
+            <p className="text-sm text-slate-300 leading-relaxed">
+              Do you want to save your work before leaving? If you exit without saving, you will lose your latest changes.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const userId = localStorage.getItem('demo_active_user_id') || 0;
+                  const draftKey = `code_draft_${userId}_${selectedProblemId}_${selectedLanguageKey}`;
+                  localStorage.setItem(draftKey, code);
+                  setIsDirty(false);
+                  setShowUnsavedModal(false);
+                  
+                  if (pendingNavigation.type === 'url') {
+                    navigate(pendingNavigation.target);
+                  } else if (pendingNavigation.type === 'problem') {
+                    if (contestId) {
+                      navigate(`/user/problems/${pendingNavigation.target}?contestId=${contestId}`);
+                    } else {
+                      navigate(`/user/problems/${pendingNavigation.target}`);
+                    }
+                    setRunResult(null);
+                    setSubmitResult(null);
+                    setActiveTestcaseIndex(0);
+                    setActiveBottomTab('result');
+                  }
+                  setPendingNavigation(null);
+                }}
+                className="w-full rounded-2xl bg-cyan-400 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-300 transition"
+              >
+                Save & Exit
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDirty(false);
+                  setShowUnsavedModal(false);
+                  
+                  if (pendingNavigation.type === 'url') {
+                    navigate(pendingNavigation.target);
+                  } else if (pendingNavigation.type === 'problem') {
+                    if (contestId) {
+                      navigate(`/user/problems/${pendingNavigation.target}?contestId=${contestId}`);
+                    } else {
+                      navigate(`/user/problems/${pendingNavigation.target}`);
+                    }
+                    setRunResult(null);
+                    setSubmitResult(null);
+                    setActiveTestcaseIndex(0);
+                    setActiveBottomTab('result');
+                  }
+                  setPendingNavigation(null);
+                }}
+                className="w-full rounded-2xl bg-rose-500/10 border border-rose-500/20 py-3 text-sm font-semibold text-rose-300 hover:bg-rose-500/25 transition"
+              >
+                Discard & Exit
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUnsavedModal(false);
+                  setPendingNavigation(null);
+                }}
+                className="w-full rounded-2xl bg-white/5 border border-white/10 py-3 text-sm font-semibold text-slate-300 hover:bg-white/10 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </UserLayout>
   );
 }

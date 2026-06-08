@@ -87,4 +87,28 @@ router.get('/:id/profile', asyncHandler(async (req, res) => {
   });
 }));
 
+router.get('/:id/problems/:problemId/submissions', asyncHandler(async (req, res) => {
+  const userId = Number.parseInt(req.params.id, 10);
+  const problemId = Number.parseInt(req.params.problemId, 10);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    throw new HttpError(400, 'Invalid user id');
+  }
+  if (!Number.isInteger(problemId) || problemId <= 0) {
+    throw new HttpError(400, 'Invalid problem id');
+  }
+
+  const [submissions] = await pool.query(
+    `SELECT s.id, s.code, s.language_id, s.verdict, s.passed_count, s.total_count, s.created_at
+     FROM submissions s
+     WHERE s.user_id = ? AND s.problem_id = ?
+     ORDER BY s.id DESC`,
+    [userId, problemId]
+  );
+
+  res.json({
+    success: true,
+    data: submissions
+  });
+}));
+
 module.exports = router;

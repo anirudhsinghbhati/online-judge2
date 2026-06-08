@@ -1,6 +1,6 @@
 import Editor from '@monaco-editor/react';
 
-function MonacoEditor({ value, onChange, language = 'cpp', height = '420px', className = '' }) {
+function MonacoEditor({ value, onChange, language = 'cpp', height = '420px', className = '', readOnly = false }) {
   return (
     <div className={`h-full overflow-hidden rounded-2xl border border-white/10 bg-[#0d0d11] shadow-glow ${className}`}>
       <Editor
@@ -8,7 +8,11 @@ function MonacoEditor({ value, onChange, language = 'cpp', height = '420px', cla
         theme="vs-dark"
         language={language}
         value={value}
-        onChange={(nextValue) => onChange(nextValue ?? '')}
+        onChange={(nextValue) => {
+          if (!readOnly && onChange) {
+            onChange(nextValue ?? '');
+          }
+        }}
         beforeMount={(monaco) => {
           monaco.editor.defineTheme('judgeTheme', {
             base: 'vs-dark',
@@ -37,7 +41,8 @@ function MonacoEditor({ value, onChange, language = 'cpp', height = '420px', cla
             smoothScrolling: true,
             wordWrap: 'on',
             scrollBeyondLastLine: false,
-            fontFamily: 'Consolas, ui-monospace, monospace'
+            fontFamily: 'Consolas, ui-monospace, monospace',
+            readOnly: readOnly
           });
         }}
         options={{

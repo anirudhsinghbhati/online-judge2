@@ -60,7 +60,7 @@ async function getAllProblems(options = {}) {
 
 async function fetchProblemByIdFromDb(problemId, executor, includeHidden) {
   const [problemRows] = await executor.query(
-    'SELECT id, title, description, difficulty, topic, constraints_text AS constraints, image_url, is_practice AS isPractice, created_at, updated_at FROM problems WHERE id = ?',
+    'SELECT id, title, description, difficulty, topic, constraints_text AS constraints, image_url, is_practice AS isPractice, official_solution AS officialSolution, created_at, updated_at FROM problems WHERE id = ?',
     [problemId]
   );
 
@@ -105,6 +105,7 @@ async function createProblem(payload, executor = pool) {
   const constraints = normalizeText(payload.constraints || payload.constraints_text);
   const imageUrl = normalizeText(payload.imageUrl || payload.image_url);
   const isPractice = payload.isPractice !== undefined ? Boolean(payload.isPractice) : true;
+  const officialSolution = normalizeText(payload.officialSolution);
   const testcases = normalizeTestcases(payload.testcases);
 
   if (!title) {
@@ -122,8 +123,8 @@ async function createProblem(payload, executor = pool) {
     await runner.beginTransaction();
 
     const [insertResult] = await connection.query(
-      'INSERT INTO problems (title, description, difficulty, topic, constraints_text, image_url, is_practice) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [title, description, difficulty, topic, constraints, imageUrl, isPractice ? 1 : 0]
+      'INSERT INTO problems (title, description, difficulty, topic, constraints_text, image_url, is_practice, official_solution) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [title, description, difficulty, topic, constraints, imageUrl, isPractice ? 1 : 0, officialSolution]
     );
 
     const problemId = insertResult.insertId;
@@ -165,6 +166,7 @@ async function updateProblem(id, payload, executor = pool) {
   const constraints = normalizeText(payload.constraints || payload.constraints_text);
   const imageUrl = normalizeText(payload.imageUrl || payload.image_url);
   const isPractice = payload.isPractice !== undefined ? Boolean(payload.isPractice) : true;
+  const officialSolution = normalizeText(payload.officialSolution);
   const testcases = normalizeTestcases(payload.testcases);
 
   if (!title) {
@@ -182,8 +184,8 @@ async function updateProblem(id, payload, executor = pool) {
     await runner.beginTransaction();
 
     const [updateResult] = await connection.query(
-      'UPDATE problems SET title = ?, description = ?, difficulty = ?, topic = ?, constraints_text = ?, image_url = ?, is_practice = ? WHERE id = ?',
-      [title, description, difficulty, topic, constraints, imageUrl, isPractice ? 1 : 0, problemId]
+      'UPDATE problems SET title = ?, description = ?, difficulty = ?, topic = ?, constraints_text = ?, image_url = ?, is_practice = ?, official_solution = ? WHERE id = ?',
+      [title, description, difficulty, topic, constraints, imageUrl, isPractice ? 1 : 0, officialSolution, problemId]
     );
 
     if (updateResult.affectedRows === 0) {

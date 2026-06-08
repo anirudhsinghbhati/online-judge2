@@ -21,6 +21,8 @@ export default function ProblemView() {
     topic: 'General',
     constraints: '',
     imageUrl: '',
+    isPractice: true,
+    officialSolution: '',
     testcases: []
   });
 
@@ -40,6 +42,8 @@ export default function ProblemView() {
             topic: data.topic || 'General',
             constraints: data.constraints || '',
             imageUrl: data.image_url || '',
+            isPractice: data.isPractice !== undefined ? Boolean(data.isPractice) : true,
+            officialSolution: data.officialSolution || '',
             testcases: Array.isArray(data.testcases)
               ? data.testcases.map((tc) => ({
                   input_data: tc.input_data || '',
@@ -182,15 +186,24 @@ export default function ProblemView() {
             <div>
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs uppercase tracking-[0.35em] text-cyan-200/70">{problem.topic || 'General'}</p>
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  problem.difficulty === 'Hard'
-                    ? 'bg-rose-400/15 text-rose-200 ring-1 ring-rose-300/30'
-                    : problem.difficulty === 'Medium'
-                      ? 'bg-amber-400/15 text-amber-200 ring-1 ring-amber-300/30'
-                      : 'bg-emerald-400/15 text-emerald-200 ring-1 ring-emerald-300/30'
-                }`}>
-                  {problem.difficulty}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    problem.isPractice
+                      ? 'bg-emerald-400/15 text-emerald-200 ring-1 ring-emerald-300/30'
+                      : 'bg-amber-400/15 text-amber-200 ring-1 ring-amber-300/30'
+                  }`}>
+                    {problem.isPractice ? 'Public' : 'Contest Reserved'}
+                  </span>
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    problem.difficulty === 'Hard'
+                      ? 'bg-rose-400/15 text-rose-200 ring-1 ring-rose-300/30'
+                      : problem.difficulty === 'Medium'
+                        ? 'bg-amber-400/15 text-amber-200 ring-1 ring-amber-300/30'
+                        : 'bg-emerald-400/15 text-emerald-200 ring-1 ring-emerald-300/30'
+                  }`}>
+                    {problem.difficulty}
+                  </span>
+                </div>
               </div>
               <h1 className="mt-3 text-3xl font-semibold text-white">{problem.title}</h1>
             </div>
@@ -214,6 +227,15 @@ export default function ProblemView() {
                 <div className="inline-block rounded-xl border border-white/5 bg-white/5 px-4 py-2 text-sm text-slate-300 font-mono">
                   {problem.constraints}
                 </div>
+              </div>
+            ) : null}
+
+            {problem.officialSolution ? (
+              <div className="space-y-2">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Official Solution</h2>
+                <pre className="rounded-xl border border-white/5 bg-black/40 p-4 text-xs font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap max-h-80">
+                  {problem.officialSolution}
+                </pre>
               </div>
             ) : null}
 
@@ -328,7 +350,19 @@ export default function ProblemView() {
               />
             </label>
 
-            <label className="space-y-2 text-sm text-slate-200 md:col-span-2">
+            <label className="space-y-2 text-sm text-slate-200">
+              <span className="text-slate-400">Visibility</span>
+              <select
+                value={form.isPractice ? 'public' : 'contest'}
+                onChange={(event) => updateField('isPractice', event.target.value === 'public')}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 outline-none focus:border-cyan-300/40 text-slate-100"
+              >
+                <option value="public">Public (Practice Arena)</option>
+                <option value="contest">Reserve for Contests</option>
+              </select>
+            </label>
+
+            <label className="space-y-2 text-sm text-slate-200 md:col-span-3">
               <span className="text-slate-400">Problem Description</span>
               <textarea
                 rows="8"
@@ -358,6 +392,17 @@ export default function ProblemView() {
                 value={form.constraints}
                 onChange={(event) => updateField('constraints', event.target.value)}
                 className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 outline-none placeholder:text-slate-500 focus:border-cyan-300/40 text-slate-100"
+              />
+            </label>
+
+            <label className="space-y-2 text-sm text-slate-200 md:col-span-2">
+              <span className="text-slate-400">Official Solution</span>
+              <textarea
+                rows="6"
+                placeholder="Paste official code solution or text description here..."
+                value={form.officialSolution}
+                onChange={(event) => updateField('officialSolution', event.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 outline-none placeholder:text-slate-500 focus:border-cyan-300/40 font-mono text-slate-100"
               />
             </label>
           </div>

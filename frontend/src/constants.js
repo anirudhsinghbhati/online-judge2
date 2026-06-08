@@ -72,3 +72,33 @@ export const STARTER_CODE = LANGUAGE_OPTIONS.find((language) => language.key ===
 export function getLanguageOption(key) {
     return LANGUAGE_OPTIONS.find((language) => language.key === key) || LANGUAGE_OPTIONS[0];
 }
+
+export function formatContestDateTime(dateStr, timeStr) {
+  if (!dateStr) return '';
+  let datePart = dateStr;
+  if (typeof dateStr === 'string' && dateStr.includes('T')) {
+    datePart = dateStr.split('T')[0];
+  } else if (dateStr instanceof Date) {
+    const y = dateStr.getFullYear();
+    const m = String(dateStr.getMonth() + 1).padStart(2, '0');
+    const d = String(dateStr.getDate()).padStart(2, '0');
+    datePart = `${y}-${m}-${d}`;
+  }
+  
+  const timePart = timeStr || '00:00:00';
+  const isoStr = `${datePart}T${timePart}`;
+  const dt = new Date(isoStr);
+  
+  if (isNaN(dt.getTime())) {
+    return `${datePart} @ ${timePart}`;
+  }
+  
+  return dt.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+}

@@ -13,6 +13,8 @@ export default function ProblemAdd() {
     topic: '',
     constraints: '',
     imageUrl: '',
+    isPractice: true,
+    officialSolution: '',
     visibleInput1: '',
     visibleOutput1: '',
     visibleInput2: '',
@@ -43,6 +45,8 @@ export default function ProblemAdd() {
         topic: form.topic,
         constraints: form.constraints,
         imageUrl: form.imageUrl,
+        isPractice: form.isPractice,
+        officialSolution: form.officialSolution,
         testcases: [
           { input_data: form.visibleInput1, expected_output: form.visibleOutput1, visibility: 'visible', sort_order: 0 },
           { input_data: form.visibleInput2, expected_output: form.visibleOutput2, visibility: 'visible', sort_order: 1 },
@@ -99,7 +103,19 @@ export default function ProblemAdd() {
             />
           </label>
 
-          <label className="space-y-2 text-sm text-slate-200 md:col-span-2">
+          <label className="space-y-2 text-sm text-slate-200">
+            <span className="text-slate-400">Visibility</span>
+            <select
+              value={form.isPractice ? 'public' : 'contest'}
+              onChange={(event) => updateField('isPractice', event.target.value === 'public')}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 outline-none focus:border-cyan-300/40 text-slate-100"
+            >
+              <option value="public">Public (Practice Arena)</option>
+              <option value="contest">Reserve for Contests</option>
+            </select>
+          </label>
+
+          <label className="space-y-2 text-sm text-slate-200 md:col-span-3">
             <span className="text-slate-400">Problem Description</span>
             <textarea
               rows="8"
@@ -129,6 +145,17 @@ export default function ProblemAdd() {
               value={form.constraints}
               onChange={(event) => updateField('constraints', event.target.value)}
               className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 outline-none placeholder:text-slate-500 focus:border-cyan-300/40"
+            />
+          </label>
+
+          <label className="space-y-2 text-sm text-slate-200 md:col-span-2">
+            <span className="text-slate-400">Official Solution</span>
+            <textarea
+              rows="6"
+              placeholder="Paste official code solution or text description here..."
+              value={form.officialSolution}
+              onChange={(event) => updateField('officialSolution', event.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 outline-none placeholder:text-slate-500 focus:border-cyan-300/40 font-mono text-slate-100"
             />
           </label>
         </div>

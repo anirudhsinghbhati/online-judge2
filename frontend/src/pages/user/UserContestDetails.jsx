@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import UserLayout from '../../components/UserLayout';
+import { formatContestDateTime } from '../../constants';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -190,7 +191,7 @@ export default function UserContestDetails() {
           </div>
 
           <div className="mt-8 bg-white/5 rounded-2xl px-6 py-4 border border-white/5 font-mono text-slate-400 text-xs space-y-1">
-            <div>Schedule: {contest.start_date} @ {contest.start_time}</div>
+            <div>Schedule: {formatContestDateTime(contest.start_date, contest.start_time)}</div>
             <div>Duration: {contest.duration}</div>
           </div>
 
@@ -244,8 +245,8 @@ export default function UserContestDetails() {
                 </div>
               )}
               <div>Duration: <span className="text-white font-semibold">{contest.duration}</span></div>
-              <div>Starts: {contest.start_date} @ {contest.start_time}</div>
-              <div>Ends: {contest.end_date} @ {contest.end_time}</div>
+              <div>Starts: {formatContestDateTime(contest.start_date, contest.start_time)}</div>
+              <div>Ends: {formatContestDateTime(contest.end_date, contest.end_time)}</div>
             </div>
           </div>
         </div>

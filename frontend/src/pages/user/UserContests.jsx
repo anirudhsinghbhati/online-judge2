@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import UserLayout from '../../components/UserLayout';
+import { formatContestDateTime } from '../../constants';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -100,11 +101,11 @@ export default function UserContests() {
           <div className="shrink-0 text-right sm:text-left font-mono text-xs text-slate-400 space-y-1 border-t sm:border-t-0 sm:border-l border-white/10 pt-2 sm:pt-0 sm:pl-4">
             <div>
               <span className="text-slate-600 uppercase text-[9px] tracking-wider block font-sans">Start</span>
-              {contest.start_date} @ {contest.start_time}
+              {formatContestDateTime(contest.start_date, contest.start_time)}
             </div>
             <div className="pt-1">
               <span className="text-slate-600 uppercase text-[9px] tracking-wider block font-sans">End</span>
-              {contest.end_date} @ {contest.end_time}
+              {formatContestDateTime(contest.end_date, contest.end_time)}
             </div>
           </div>
         </div>
