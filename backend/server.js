@@ -20,4 +20,6 @@ async function startServer() {
   });
 }
 
+// Trigger reload to pick up schema changes
 startServer();
+

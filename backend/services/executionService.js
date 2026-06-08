@@ -24,6 +24,7 @@ function fromBase64(value) {
   if (value === null || value === undefined || value === '') {
     return '';
   }
+  
 
   return Buffer.from(String(value), 'base64').toString('utf8');
 }
